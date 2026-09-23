@@ -175,6 +175,23 @@ private fun CommandGeneratorApp() {
             history = store.replace(imported)
         }
     }
+    val settingsExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching {
+            val settings = JSONObject().put("host", host).put("token", token).put("playerId", playerId).put("language", language).put("darkTheme", darkTheme)
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(settings.toString(2)) }
+        }
+    }
+    val settingsImportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            val settings = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { JSONObject(it.readText()) } ?: JSONObject()
+            host = settings.optString("host", host)
+            token = settings.optString("token", token)
+            playerId = settings.optString("playerId", playerId)
+            language = settings.optString("language", language)
+            darkTheme = settings.optBoolean("darkTheme", darkTheme)
+            appPreferences.edit().putString("language", language).putBoolean("dark_theme", darkTheme).apply()
+        }
+    }
     var jsonName by remember { mutableStateOf("config.json") }
     var jsonText by remember { mutableStateOf("") }
     var jsonStatus by remember { mutableStateOf("") }
@@ -235,16 +252,20 @@ private fun CommandGeneratorApp() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Text("资源语言：$language", modifier = Modifier.padding(top = 8.dp))
-                    TextButton(onClick = {
-                        language = listOf("zh-cn", "zh-tw", "en-us", "ru-ru").let { it[(it.indexOf(language) + 1) % it.size] }
-                        appPreferences.edit().putString("language", language).apply()
-                    }) { Text("切换语言") }
-                    TextButton(onClick = {
-                        darkTheme = !darkTheme
-                        appPreferences.edit().putBoolean("dark_theme", darkTheme).apply()
-                    }) { Text(if (darkTheme) "浅色主题" else "深色主题") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = {
+                            language = listOf("zh-cn", "zh-tw", "en-us", "ru-ru").let { it[(it.indexOf(language) + 1) % it.size] }
+                            appPreferences.edit().putString("language", language).apply()
+                        }) { Text("切换语言") }
+                        TextButton(onClick = {
+                            darkTheme = !darkTheme
+                            appPreferences.edit().putBoolean("dark_theme", darkTheme).apply()
+                        }) { Text(if (darkTheme) "浅色主题" else "深色主题") }
+                        TextButton(onClick = { settingsImportLauncher.launch(arrayOf("application/json", "text/plain")) }) { Text("导入设置") }
+                        TextButton(onClick = { settingsExportLauncher.launch("grasscutter-settings.json") }) { Text("导出设置") }
+                    }
                 }
             }
             item {
