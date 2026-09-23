@@ -1355,6 +1355,18 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                             values = values.toMutableList().also { it[3] = updated }
                         }) { Text("${entry.id}  ${entry.name}") }
                     }
+                    val selectedSubstats = values[3].trim().split(Regex("[;\\s]+" )).filter { it.isNotBlank() }
+                    if (selectedSubstats.isNotEmpty()) {
+                        Text("已选副属性", style = MaterialTheme.typography.labelLarge)
+                        selectedSubstats.forEachIndexed { index, substat ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(substat, modifier = Modifier.weight(1f), fontFamily = FontFamily.Monospace)
+                                TextButton(onClick = {
+                                    values = values.toMutableList().also { it[3] = selectedSubstats.filterIndexed { itemIndex, _ -> itemIndex != index }.joinToString(" ") }
+                                }) { Text("删除") }
+                            }
+                        }
+                    }
                 }
             }
             if (template.title == "发送邮件") {
