@@ -132,6 +132,9 @@ private val templates = listOf(
     CommandTemplate("发送邮件", listOf("收件人 UID 或 all", "标题", "内容", "发件人", "附件：物品ID 数量 等级"), listOf("all", "标题", "内容", "Grasscutter", "")) { v ->
         "/sendMail ${v[0]} | /sendMail ${v[1]} | /sendMail ${v[2].replace("\n", "\\n")} | /sendMail ${v[3]}" + v[4].takeIf { it.isNotBlank() }?.let { " | /sendMail $it" }.orEmpty() + " | /sendMail finish"
     },
+    CommandTemplate("批量命令", listOf("每行一条命令"), listOf("/pos\n/list uid")) { v ->
+        v[0].lines().map { it.trim() }.filter { it.isNotBlank() }.joinToString(" | ")
+    },
     CommandTemplate("自定义", listOf("完整指令"), listOf("/help")) { v -> v[0] },
 )
 
@@ -143,7 +146,7 @@ private fun templateGroup(title: String): String = when (title) {
     "任务", "成就", "成就全部", "成就进度" -> "任务成就"
     "权限管理", "账号管理", "封禁玩家", "解禁玩家", "发送邮件" -> "玩家管理"
     "切换元素", "天赋等级", "设置命座", "重置命座", "场景标签" -> "高级操作"
-    "自定义" -> "自定义"
+    "自定义", "批量命令" -> "自定义"
     else -> "全部"
 }
 
@@ -462,7 +465,8 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     value = values[index],
                     onValueChange = { input -> values = values.toMutableList().also { it[index] = input } },
                     label = { Text(label) },
-                    singleLine = true,
+                    singleLine = template.title != "批量命令",
+                    minLines = if (template.title == "批量命令") 4 else 1,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
