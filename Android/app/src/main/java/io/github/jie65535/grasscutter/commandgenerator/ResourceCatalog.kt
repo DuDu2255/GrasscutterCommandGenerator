@@ -24,8 +24,8 @@ internal class ResourceCatalog(private val context: Context) {
         return runCatching {
             context.assets.open(file).bufferedReader().useLines { lines ->
                 lines.mapNotNull { line ->
-                    val parts = line.trim().split(Regex("\\s+"), limit = 2)
-                    if (parts.size == 2 && parts[1].filter(Char::isLetterOrDigit).lowercase() == needle) parts[0] else null
+                    val entry = parseLine(line)
+                    if (entry != null && entry.name.filter(Char::isLetterOrDigit).lowercase() == needle) entry.id else null
                 }.firstOrNull()
             }
         }.getOrNull()
@@ -62,10 +62,19 @@ internal class ResourceCatalog(private val context: Context) {
         return runCatching {
             context.assets.open(file).bufferedReader().useLines { lines ->
                 lines.mapNotNull { line ->
-                    val parts = line.trim().split(Regex("\\s+"), limit = 2)
-                    if (parts.size == 2 && parts[0].all(Char::isDigit)) CatalogEntry(parts[0], parts[1]) else null
+                    parseLine(line)
                 }.toList()
             }
         }.getOrDefault(emptyList())
+    }
+
+    private fun parseLine(raw: String): CatalogEntry? {
+        val line = raw.trimStart('\uFEFF').trim()
+        if (line.isBlank() || line.startsWith("//") || line.startsWith("#")) return null
+        val separator = line.indexOf(':').takeIf { it > 0 } ?: line.indexOfFirst { it.isWhitespace() }
+        if (separator <= 0 || separator >= line.lastIndex) return null
+        val id = line.substring(0, separator).trim()
+        val name = line.substring(separator + 1).trim()
+        return if (id.isNotBlank() && name.isNotBlank()) CatalogEntry(id, name) else null
     }
 }
