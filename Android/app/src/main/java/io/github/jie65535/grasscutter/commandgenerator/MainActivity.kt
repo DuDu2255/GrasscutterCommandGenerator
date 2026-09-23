@@ -50,7 +50,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,6 +96,13 @@ private val templates = listOf(
 private fun CommandGeneratorApp() {
     val context = LocalContext.current
     val store = remember { HistoryStore(context) }
+    val connection = remember { OpenCommandSettings(context) }
+    var host by remember { mutableStateOf(connection.host) }
+    var token by remember { mutableStateOf(connection.token) }
+    var playerId by remember { mutableStateOf(connection.playerId) }
+    var verificationCode by remember { mutableStateOf("") }
+    var connectionStatus by remember { mutableStateOf("未连接") }
+    var connected by remember { mutableStateOf(connection.token.isNotBlank()) }
     var selectedTitle by rememberSaveable { mutableStateOf(templates.first().title) }
     var history by remember { mutableStateOf(store.load()) }
     val snackbar = remember { SnackbarHostState() }
@@ -112,6 +124,27 @@ private fun CommandGeneratorApp() {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
+                RemoteConnectionPanel(
+                    host = host,
+                    onHostChange = { host = it },
+                    token = token,
+                    onTokenChange = { token = it },
+                    playerId = playerId,
+                    onPlayerIdChange = { playerId = it },
+                    verificationCode = verificationCode,
+                    onVerificationCodeChange = { verificationCode = it },
+                    status = connectionStatus,
+                    connected = connected,
+                    scope = scope,
+                    onStatus = { connectionStatus = it },
+                    onConnected = { newToken ->
+                        connected = true
+                        connection.save(host.trim(), newToken.trim(), playerId)
+                    },
+                    onToken = { token = it },
+                )
+            }
+            item {
                 Text("指令类型", style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
                     templates.take(4).forEach { template ->
@@ -124,7 +157,7 @@ private fun CommandGeneratorApp() {
                     }
                 }
             }
-            item(key = selected.title) { CommandForm(selected, context, snackbar, scope, onSaved = { command ->
+            item(key = selected.title) { CommandForm(selected, context, snackbar, scope, connected, host, token, onSaved = { command ->
                 history = store.add(command)
             }) }
             item { HorizontalDivider() }
@@ -139,8 +172,68 @@ private fun CommandGeneratorApp() {
 }
 
 @Composable
-private fun CommandForm(template: CommandTemplate, context: Context, snackbar: SnackbarHostState, scope: kotlinx.coroutines.CoroutineScope, onSaved: (String) -> Unit) {
+private fun RemoteConnectionPanel(
+    host: String,
+    onHostChange: (String) -> Unit,
+    token: String,
+    onTokenChange: (String) -> Unit,
+    playerId: String,
+    onPlayerIdChange: (String) -> Unit,
+    verificationCode: String,
+    onVerificationCodeChange: (String) -> Unit,
+    status: String,
+    connected: Boolean,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onStatus: (String) -> Unit,
+    onConnected: (String) -> Unit,
+    onToken: (String) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("远程执行", style = MaterialTheme.typography.titleLarge)
+            Text("需要服务器安装 gc-opencommand-plugin", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(host, onHostChange, label = { Text("服务器地址，例如 http://192.168.1.10:443") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(playerId, onPlayerIdChange, label = { Text("玩家 UID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    scope.launch {
+                        onStatus("检测中...")
+                        runCatching { OpenCommandClient(host).ping() }
+                            .onSuccess { version -> onStatus("已连接，插件版本 $version") }
+                            .onFailure { onStatus("连接失败：${it.message ?: "未知错误"}") }
+                    }
+                }) { Text("检测服务器") }
+                Button(enabled = host.isNotBlank() && playerId.isNotBlank(), onClick = {
+                    scope.launch {
+                        onStatus("验证码发送中...")
+                        runCatching { OpenCommandClient(host).sendCode(playerId.toInt()) }
+                            .onSuccess { onStatus("验证码已发送，请在游戏内查看") }
+                            .onFailure { onStatus("发送失败：${it.message ?: "未知错误"}") }
+                    }
+                }) { Text("发送验证码") }
+            }
+            OutlinedTextField(verificationCode, onVerificationCodeChange, label = { Text("验证码") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(token, onTokenChange, label = { Text("Token（可直接填写已保存 Token）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(enabled = host.isNotBlank() && verificationCode.isNotBlank(), onClick = {
+                    scope.launch {
+                        onStatus("验证中...")
+                        runCatching { OpenCommandClient(host).verify(verificationCode.toInt()) }
+                            .onSuccess { newToken -> onToken(newToken); onConnected(newToken); onStatus("OpenCommand 已连接") }
+                            .onFailure { onStatus("验证失败：${it.message ?: "未知错误"}") }
+                    }
+                }) { Text("验证并连接") }
+                Text(if (connected) "已连接" else status, color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
+            }
+            if (status.isNotBlank() && !connected) Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun CommandForm(template: CommandTemplate, context: Context, snackbar: SnackbarHostState, scope: kotlinx.coroutines.CoroutineScope, connected: Boolean, host: String, token: String, onSaved: (String) -> Unit) {
     var values by rememberSaveable(template.title) { mutableStateOf(template.example) }
+    val catalog = remember { ResourceCatalog(context) }
     val command = template.render(values)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -154,6 +247,16 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            if (template.title in setOf("给予物品", "给予角色", "给予武器", "给予圣遗物")) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    catalog.search(template.title, values.firstOrNull().orEmpty()).forEach { entry ->
+                        AssistChip(
+                            onClick = { values = values.toMutableList().also { it[0] = entry.id } },
+                            label = { Text("${entry.id} ${entry.name}") },
+                        )
+                    }
+                }
+            }
             Text("生成结果", style = MaterialTheme.typography.labelLarge)
             Text(command, fontFamily = FontFamily.Monospace, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -163,6 +266,13 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                 TextButton(onClick = {
                     context.startActivity(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, command) })
                 }) { Icon(Icons.Default.Share, contentDescription = null); Text("分享") }
+                TextButton(enabled = connected, onClick = {
+                    scope.launch {
+                        runCatching { OpenCommandClient(host).invoke(token, command) }
+                            .onSuccess { snackbar.showSnackbar(it.ifBlank { "指令已发送" }) }
+                            .onFailure { snackbar.showSnackbar("发送失败：${it.message ?: "未知错误"}") }
+                    }
+                }) { Text("发送到服务器") }
             }
         }
     }
