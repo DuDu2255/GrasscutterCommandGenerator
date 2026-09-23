@@ -349,6 +349,9 @@ private fun CommandGeneratorApp() {
                 ActivityEditor(context, language)
             }
             item {
+                DropEditor(context, language)
+            }
+            item {
                 RemoteConnectionPanel(
                     host = host,
                     onHostChange = { host = it; connected = false },
@@ -751,6 +754,90 @@ private fun ActivityEditor(context: Context, language: String) {
                     GachaField("前置条件 ID（逗号分隔）", jsonIntArrayText(selected, "meetCondList"), "meetCondList") { key, value -> selected.put(key, parseIntArray(value)); activityText = activities.toString(2) }
                     GachaField("开始时间 ISO", selected.optString("beginTime"), "beginTime") { key, value -> selected.put(key, value); activityText = activities.toString(2) }
                     GachaField("结束时间 ISO", selected.optString("endTime"), "endTime") { key, value -> selected.put(key, value); activityText = activities.toString(2) }
+                }
+            }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun DropEditor(context: Context, language: String) {
+    var dropText by rememberSaveable { mutableStateOf("") }
+    var monsterIndex by rememberSaveable { mutableStateOf(0) }
+    var dropIndex by rememberSaveable { mutableStateOf(0) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var itemQuery by rememberSaveable { mutableStateOf("") }
+    var status by rememberSaveable { mutableStateOf("") }
+    val catalog = remember(language) { ResourceCatalog(context, language) }
+    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            dropText = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            JSONArray(dropText)
+            monsterIndex = 0; dropIndex = 0; status = "已加载掉落表"
+        }.onFailure { status = "加载失败：${it.message ?: "JSON 格式错误"}" }
+    }
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(JSONArray(dropText).toString(2)) }
+            status = "Drop.json 已保存"
+        }.onFailure { status = "保存失败：${it.message ?: "JSON 格式错误"}" }
+    }
+    val monsters = remember(dropText) { runCatching { JSONArray(dropText) }.getOrNull() }
+    val monster = monsters?.optJSONObject(monsterIndex)
+    val drops = monster?.optJSONArray("dropDataList")
+    val selected = drops?.optJSONObject(dropIndex)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("掉落表编辑器", style = MaterialTheme.typography.titleLarge)
+            Text("编辑 Drop.json 的怪物掉落物、数量范围和概率权重。", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { openLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("打开 Drop.json") }
+                Button(enabled = monsters != null, onClick = { saveLauncher.launch("Drop.json") }) { Text("导出") }
+                Button(onClick = {
+                    val root = monsters ?: JSONArray()
+                    root.put(JSONObject().put("monsterId", 20010101).put("dropDataList", JSONArray()))
+                    dropText = root.toString(2); monsterIndex = root.length() - 1; dropIndex = 0; status = "已添加怪物掉落表"
+                }) { Text("新增怪物") }
+            }
+            if (monsters != null) {
+                OutlinedTextField(query, { query = it }, label = { Text("搜索怪物名称或 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (query.isNotBlank()) catalog.search("生成怪物", query).take(8).forEach { entry ->
+                    TextButton(onClick = {
+                        val index = (0 until monsters.length()).indexOfFirst { monsters.optJSONObject(it)?.optInt("monsterId", -1).toString() == entry.id }
+                        if (index >= 0) monsterIndex = index
+                    }, modifier = Modifier.fillMaxWidth()) { Text("${entry.id}  ${entry.name}") }
+                }
+                (0 until monsters.length()).take(30).forEach { index ->
+                    val entry = monsters.optJSONObject(index)
+                    TextButton(onClick = { monsterIndex = index; dropIndex = 0 }, modifier = Modifier.fillMaxWidth()) {
+                        Text("${if (index == monsterIndex) "▶ " else ""}怪物 ${entry?.optInt("monsterId", 0)}")
+                    }
+                }
+                if (monster != null) {
+                    GachaField("怪物 ID", monster.optInt("monsterId", 0).toString(), "monsterId") { _, value -> value.toIntOrNull()?.let { monster.put("monsterId", it); dropText = monsters.toString(2) } }
+                    Button(onClick = {
+                        val list = monster.optJSONArray("dropDataList") ?: JSONArray().also { monster.put("dropDataList", it) }
+                        list.put(JSONObject().put("itemId", 223).put("minCount", 1).put("maxCount", 1).put("minWeight", 10000).put("maxWeight", 10000))
+                        dropText = monsters.toString(2); dropIndex = list.length() - 1; status = "已添加掉落物"
+                    }) { Text("新增掉落物") }
+                    drops?.let { list -> (0 until list.length()).forEach { index ->
+                        val entry = list.optJSONObject(index)
+                        TextButton(onClick = { dropIndex = index }, modifier = Modifier.fillMaxWidth()) {
+                            Text("${if (index == dropIndex) "▶ " else ""}物品 ${entry?.optInt("itemId", 0)}")
+                        }
+                    } }
+                    if (selected != null) {
+                        OutlinedTextField(itemQuery, { itemQuery = it }, label = { Text("搜索掉落物品名称或 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        if (itemQuery.isNotBlank()) catalog.search("给予物品", itemQuery).take(8).forEach { entry ->
+                            TextButton(onClick = { selected.put("itemId", entry.id.toIntOrNull() ?: 0); dropText = monsters.toString(2) }, modifier = Modifier.fillMaxWidth()) { Text("${entry.id}  ${entry.name}") }
+                        }
+                        GachaField("物品 ID", selected.optInt("itemId", 0).toString(), "itemId") { _, value -> value.toIntOrNull()?.let { selected.put("itemId", it); dropText = monsters.toString(2) } }
+                        GachaField("最小数量", selected.optInt("minCount", 1).toString(), "minCount") { _, value -> value.toIntOrNull()?.coerceAtLeast(0)?.let { selected.put("minCount", it); dropText = monsters.toString(2) } }
+                        GachaField("最大数量", selected.optInt("maxCount", 1).toString(), "maxCount") { _, value -> value.toIntOrNull()?.coerceAtLeast(0)?.let { selected.put("maxCount", it); dropText = monsters.toString(2) } }
+                        GachaField("最小权重", selected.optInt("minWeight", 0).toString(), "minWeight") { _, value -> value.toIntOrNull()?.coerceIn(0, 10000)?.let { selected.put("minWeight", it); dropText = monsters.toString(2) } }
+                        GachaField("最大权重", selected.optInt("maxWeight", 10000).toString(), "maxWeight") { _, value -> value.toIntOrNull()?.coerceIn(0, 10000)?.let { selected.put("maxWeight", it); dropText = monsters.toString(2) } }
+                    }
                 }
             }
             if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
