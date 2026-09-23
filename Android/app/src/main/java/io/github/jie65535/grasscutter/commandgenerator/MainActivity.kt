@@ -136,6 +136,17 @@ private fun CommandGeneratorApp() {
     var connectionStatus by remember { mutableStateOf("未连接") }
     var connected by remember { mutableStateOf(connection.token.isNotBlank()) }
     var history by remember { mutableStateOf(store.load()) }
+    var jsonName by remember { mutableStateOf("config.json") }
+    var jsonText by remember { mutableStateOf("") }
+    val jsonSaveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(jsonText) } }
+    }
+    val jsonOpenLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            jsonText = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            jsonName = context.contentResolver.getType(uri)?.substringAfterLast('/')?.plus(".json") ?: "config.json"
+        }
+    }
     val goodLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { GoodImporter.importCommands(context, uri) }
@@ -164,6 +175,25 @@ private fun CommandGeneratorApp() {
             item {
                 Button(onClick = { goodLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }) {
                     Text("导入 GOOD 存档")
+                }
+            }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("JSON 配置编辑器", style = MaterialTheme.typography.titleLarge)
+                        Text("用于 banners.json、商店和活动配置等桌面端资源文件", style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { jsonOpenLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("打开 JSON") }
+                            Button(enabled = jsonText.isNotBlank(), onClick = { jsonSaveLauncher.launch(jsonName) }) { Text("另存为") }
+                        }
+                        OutlinedTextField(
+                            value = jsonText,
+                            onValueChange = { jsonText = it },
+                            label = { Text(jsonName) },
+                            minLines = 5,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
             item {
