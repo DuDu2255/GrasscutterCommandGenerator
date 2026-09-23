@@ -114,6 +114,18 @@ private val templates = listOf(
     CommandTemplate("生成怪物", listOf("怪物 ID", "数量", "等级"), listOf("20010101", "1", "1")) { v ->
         "/spawn ${v[0]} ${v[1]} ${v[2]}"
     },
+    CommandTemplate("生成实体高级", listOf("实体 ID", "数量", "等级", "半径", "高度", "间隔"), listOf("20010101", "1", "1", "5", "0", "1")) { v ->
+        "/spawn ${v[0]} ${v[1]} ${v[2]} ${v[3]} ${v[4]} ${v[5]}"
+    },
+    CommandTemplate("攻击修改", listOf("技能类型", "实体 ID"), listOf("skill", "20010101")) { v ->
+        "/at set ${v[0]} ${v[1]}"
+    },
+    CommandTemplate("攻击注入", listOf("注入参数"), listOf("20010101 5 10")) { v ->
+        "/at ${v[0]}"
+    },
+    CommandTemplate("特殊生成", listOf("实体 ID", "参数"), listOf("20010101", " 1 1")) { v ->
+        "/snoospawn ${v[0]}${v[1]}"
+    },
     CommandTemplate("生成物品", listOf("物品 ID", "数量", "等级"), listOf("223", "1", "1")) { v ->
         "/spawn ${v[0]} x${v[1]} lv${v[2]}"
     },
@@ -160,7 +172,7 @@ private val templates = listOf(
 private val templateGroups = listOf("全部", "物品角色", "世界场景", "任务成就", "玩家管理", "高级操作", "自定义")
 
 private fun templateGroup(title: String): String = when (title) {
-    "给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成物品", "生成怪物" -> "物品角色"
+    "给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成物品", "生成怪物", "生成实体高级", "攻击修改", "攻击注入", "特殊生成" -> "物品角色"
     "传送", "场景", "地城", "过场动画", "天气", "设置属性", "世界等级", "深境螺旋等级", "开放状态", "解锁全部" -> "世界场景"
     "任务", "成就", "成就全部", "成就进度" -> "任务成就"
     "权限管理", "账号管理", "封禁玩家", "解禁玩家", "发送邮件" -> "玩家管理"
@@ -350,6 +362,15 @@ private fun CommandGeneratorApp() {
             }
             item {
                 DropEditor(context, language)
+            }
+            item {
+                TextMapBrowser(context)
+            }
+            item {
+                HotkeyPresetEditor(context)
+            }
+            item {
+                ProxySettingsEditor(context)
             }
             item {
                 RemoteConnectionPanel(
@@ -845,6 +866,113 @@ private fun DropEditor(context: Context, language: String) {
     }
 }
 
+@Composable
+private fun TextMapBrowser(context: Context) {
+    var text by rememberSaveable { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
+    var status by rememberSaveable { mutableStateOf("") }
+    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            status = "已打开文本资源"
+        }.onFailure { status = "打开失败：${it.message ?: "无法读取文件"}" }
+    }
+    val lines = remember(text, query) {
+        text.lineSequence().filter { query.isBlank() || it.contains(query, true) }.take(100).toList()
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("TextMap 文本浏览器", style = MaterialTheme.typography.titleLarge)
+            Text("打开桌面端导出的文本资源，按 ID 或文本内容搜索。", style = MaterialTheme.typography.bodySmall)
+            Button(onClick = { openLauncher.launch(arrayOf("text/plain", "application/json", "*/*")) }) { Text("打开文本资源") }
+            if (text.isNotBlank()) {
+                OutlinedTextField(query, { query = it }, label = { Text("搜索 ID 或文本") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                lines.forEach { line -> Text(line, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }
+                if (lines.isEmpty()) Text("没有匹配结果", style = MaterialTheme.typography.bodySmall)
+            }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun HotkeyPresetEditor(context: Context) {
+    val preferences = remember { context.getSharedPreferences("hotkey_presets", Context.MODE_PRIVATE) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var command by rememberSaveable { mutableStateOf("") }
+    var presets by remember { mutableStateOf(loadHotkeyPresets(preferences)) }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("快捷命令预设", style = MaterialTheme.typography.titleLarge)
+            Text("Android 没有桌面全局热键，因此使用可点击的命令快捷预设替代。", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(name, { name = it }, label = { Text("预设名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(command, { command = it }, label = { Text("完整命令") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Button(enabled = name.isNotBlank() && command.isNotBlank(), onClick = {
+                presets = (presets.filter { it.first != name.trim() } + (name.trim() to command.trim())).takeLast(30)
+                saveHotkeyPresets(preferences, presets)
+                name = ""; command = ""
+            }) { Text("保存预设") }
+            presets.forEach { (presetName, presetCommand) ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { command = presetCommand }, modifier = Modifier.weight(1f)) { Text("$presetName  $presetCommand") }
+                    TextButton(onClick = { presets = presets.filter { it.first != presetName }; saveHotkeyPresets(preferences, presets) }) { Text("删除") }
+                }
+            }
+        }
+    }
+}
+
+private fun loadHotkeyPresets(preferences: android.content.SharedPreferences): List<Pair<String, String>> = runCatching {
+    val array = JSONArray(preferences.getString("items", "[]"))
+    List(array.length()) { array.optJSONObject(it)?.let { item -> item.optString("name") to item.optString("command") } ?: ("" to "") }
+        .filter { it.first.isNotBlank() && it.second.isNotBlank() }
+}.getOrDefault(emptyList())
+
+private fun saveHotkeyPresets(preferences: android.content.SharedPreferences, presets: List<Pair<String, String>>) {
+    val array = JSONArray()
+    presets.forEach { (name, command) -> array.put(JSONObject().put("name", name).put("command", command)) }
+    preferences.edit().putString("items", array.toString()).apply()
+}
+
+@Composable
+private fun ProxySettingsEditor(context: Context) {
+    val preferences = remember { context.getSharedPreferences("network_proxy", Context.MODE_PRIVATE) }
+    var proxyHost by remember { mutableStateOf(preferences.getString("host", "") ?: "") }
+    var proxyPort by remember { mutableStateOf(preferences.getString("port", "8080") ?: "8080") }
+    var status by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) { applyProxySettings(proxyHost, proxyPort) }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("网络代理", style = MaterialTheme.typography.titleLarge)
+            Text("为 OpenCommand 的 HTTP/HTTPS 请求设置代理。清空代理地址后恢复直连。", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(proxyHost, { proxyHost = it }, label = { Text("代理地址（可留空）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(proxyPort, { proxyPort = it }, label = { Text("代理端口") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Button(onClick = {
+                val port = proxyPort.toIntOrNull()
+                if (proxyHost.isNotBlank() && (port == null || port !in 1..65535)) {
+                    status = "代理端口必须是 1-65535"
+                } else {
+                    preferences.edit().putString("host", proxyHost.trim()).putString("port", proxyPort.trim()).apply()
+                    applyProxySettings(proxyHost, proxyPort)
+                    status = if (proxyHost.isBlank()) "已恢复直连" else "代理已应用"
+                }
+            }) { Text("应用代理") }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+private fun applyProxySettings(host: String, port: String) {
+    if (host.isBlank()) {
+        listOf("http.proxyHost", "http.proxyPort", "https.proxyHost", "https.proxyPort").forEach { System.clearProperty(it) }
+    } else {
+        System.setProperty("http.proxyHost", host.trim())
+        System.setProperty("http.proxyPort", port.trim())
+        System.setProperty("https.proxyHost", host.trim())
+        System.setProperty("https.proxyPort", port.trim())
+    }
+}
+
 private fun appendUniqueInt(objectValue: JSONObject, key: String, rawId: String) {
     val id = rawId.toIntOrNull() ?: return
     val current = objectValue.optJSONArray(key) ?: JSONArray()
@@ -1033,6 +1161,25 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                         }) { Text("${entry.id}  ${entry.name}") }
                     }
                 }
+            }
+            if (template.title == "发送邮件") {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("搜索附件物品名称或 ID") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (searchQuery.isNotBlank()) {
+                    catalog.search("给予物品", searchQuery).take(8).forEach { entry ->
+                        TextButton(onClick = {
+                            val current = values[4].lines().filter { it.isNotBlank() }.toMutableList()
+                            current += "${entry.id} 1 1"
+                            values = values.toMutableList().also { it[4] = current.joinToString("\n") }
+                        }, modifier = Modifier.fillMaxWidth()) { Text("${entry.id}  ${entry.name}（加入附件）") }
+                    }
+                }
+                Text("附件格式：每行 物品ID 数量 等级，可继续手动修改。", style = MaterialTheme.typography.bodySmall)
             }
             if (template.title == "自定义") {
                 OutlinedTextField(searchQuery, { searchQuery = it }, label = { Text("搜索预设名称或命令") }, singleLine = true, modifier = Modifier.fillMaxWidth())
