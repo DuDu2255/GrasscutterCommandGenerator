@@ -21,6 +21,8 @@
 3. 使用与旧版相同的正式 Android 签名密钥构建 release APK。没有相同签名时，用户需要先卸载旧版，卸载会删除应用设置和命令历史。
 4. 在 GitHub Actions 的 Android 工作流中构建 `assembleRelease`，从成功运行的 Artifacts 下载 APK，并在真机上验证安装、资源搜索和远程连接。
 
+工作流支持正式签名密钥。配置仓库 Secrets `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS` 和 `ANDROID_KEY_PASSWORD` 后，release APK 会自动签名；未配置时只生成用于测试的未签名包。正式发布必须使用同一密钥，否则无法覆盖安装旧版本。
+
 仅更新 `Source/GrasscutterTools/Resources` 时，通常只需同步原仓库并重新构建；如果上游改变命令参数、OpenCommand API、GOOD 格式或资源文件格式，则需要同步修改 Kotlin 适配代码。
 
 This Android project deliberately lives beside the upstream WinForms source. `Source/GrasscutterTools/Resources` remains the data authority.

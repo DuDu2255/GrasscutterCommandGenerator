@@ -18,6 +18,20 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - name: Configure release signing
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/grasscutter-release.jks"
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/grasscutter-release.jks" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
       - name: Configure Android SDK
         shell: bash
         run: |
@@ -30,6 +44,13 @@ jobs:
             "platforms;android-36" "build-tools;36.0.0"
       - run: chmod +x gradlew || true
       - run: ./gradlew assembleRelease
+      - name: Rename APK
+        shell: bash
+        run: |
+          apk="app/build/outputs/apk/release/app-release.apk"
+          if [ -f "$apk" ]; then
+            mv "$apk" "app/build/outputs/apk/release/7.0-Command-Generator-${GITHUB_SHA::7}.apk"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: GrasscutterCommandGenerator-Android-${{ github.sha }}
