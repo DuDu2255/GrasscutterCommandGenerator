@@ -8,7 +8,7 @@ import java.net.URL
 
 /** Android implementation of the same gc-opencommand-plugin HTTP contract as the desktop app. */
 internal class OpenCommandClient(host: String) {
-    private val hostUrl = host.trimEnd('/')
+    private val hostUrl = host.trim().let { if (it.startsWith("http://") || it.startsWith("https://")) it else "http://$it" }.trimEnd('/')
     private val api = hostUrl + "/opencommand/api"
 
     suspend fun serverStatus(): String = withContext(Dispatchers.IO) {

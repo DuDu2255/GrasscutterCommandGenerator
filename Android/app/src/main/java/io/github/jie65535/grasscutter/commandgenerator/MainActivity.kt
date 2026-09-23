@@ -437,7 +437,12 @@ private fun RemoteConnectionPanel(
                 Button(enabled = host.isNotBlank() && playerId.isNotBlank(), onClick = {
                     scope.launch {
                         onStatus("验证码发送中...")
-                        runCatching { OpenCommandClient(host).sendCode(playerId.toInt()) }
+                        val uid = playerId.trim().toIntOrNull()
+                        if (uid == null) {
+                            onStatus("发送失败：玩家 UID 必须是数字")
+                            return@launch
+                        }
+                        runCatching { OpenCommandClient(host).sendCode(uid) }
                             .onSuccess { onStatus("验证码已发送，请在游戏内查看") }
                             .onFailure { onStatus("发送失败：${it.message ?: "未知错误"}") }
                     }
