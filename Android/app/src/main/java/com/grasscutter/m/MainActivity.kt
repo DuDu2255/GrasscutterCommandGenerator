@@ -1183,7 +1183,7 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (template.title in setOf("给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成怪物", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就", "设置属性")) {
+            if (template.title in setOf("给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成怪物", "生成实体高级", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就", "设置属性")) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -1203,9 +1203,9 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text("${entry.id}  ${entry.name}", modifier = Modifier.fillMaxWidth()) }
                     }
-                    if (searchQuery.isNotBlank() && results.isEmpty()) {
-                        Text("没有找到匹配的名称或 ID", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 4.dp))
-                    }
+                if (searchQuery.isNotBlank() && results.isEmpty()) {
+                    Text("没有找到匹配的名称或 ID", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 4.dp))
+                }
                 }
                 if (template.title == "给予圣遗物") {
                     Text("主属性和副属性使用原仓库属性 ID，例如 13007", style = MaterialTheme.typography.bodySmall)
@@ -1241,6 +1241,19 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     }
                 }
                 Text("附件格式：每行 物品ID 数量 等级，可继续手动修改。", style = MaterialTheme.typography.bodySmall)
+                val attachments = values[4].lines().map { it.trim() }.filter { it.isNotBlank() }
+                if (attachments.isNotEmpty()) {
+                    Text("当前附件（${attachments.size}）", style = MaterialTheme.typography.labelLarge)
+                    attachments.forEachIndexed { index, attachment ->
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("${index + 1}. $attachment", modifier = Modifier.weight(1f), fontFamily = FontFamily.Monospace)
+                            TextButton(onClick = {
+                                values = values.toMutableList().also { it[4] = attachments.filterIndexed { itemIndex, _ -> itemIndex != index }.joinToString("\n") }
+                            }) { Text("删除") }
+                        }
+                    }
+                    TextButton(onClick = { values = values.toMutableList().also { it[4] = "" } }) { Text("清空附件") }
+                }
             }
             if (template.title == "自定义") {
                 OutlinedTextField(searchQuery, { searchQuery = it }, label = { Text("搜索预设名称或命令") }, singleLine = true, modifier = Modifier.fillMaxWidth())
