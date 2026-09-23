@@ -377,7 +377,7 @@ private fun CommandGeneratorApp() {
                 GachaBannerEditor(context, language)
             }
             if (selectedModule == "编辑器") item {
-                ShopEditor(context)
+                ShopEditor(context, language)
             }
             if (selectedModule == "编辑器") item {
                 ActivityEditor(context, language)
@@ -719,11 +719,13 @@ private fun validateAdvancedSpawn(values: List<String>): String {
 }
 
 @Composable
-private fun ShopEditor(context: Context) {
+private fun ShopEditor(context: Context, language: String) {
     var shopText by rememberSaveable { mutableStateOf("") }
     var shopIndex by rememberSaveable { mutableStateOf(0) }
     var goodsIndex by rememberSaveable { mutableStateOf(0) }
+    var itemQuery by rememberSaveable { mutableStateOf("") }
     var status by rememberSaveable { mutableStateOf("") }
+    val catalog = remember(language) { ResourceCatalog(context, language) }
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runCatching {
             shopText = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -789,6 +791,13 @@ private fun ShopEditor(context: Context) {
                     if (item != null) {
                         val goodsItem = item.optJSONObject("goodsItem") ?: JSONObject().also { item.put("goodsItem", it) }
                         GachaField("商品 ID", item.optInt("goodsId", 0).toString(), "goodsId") { _, value -> value.toIntOrNull()?.let { item.put("goodsId", it); shopText = shops.toString(2) } }
+                        OutlinedTextField(itemQuery, { itemQuery = it }, label = { Text("搜索商品物品名称或 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        if (itemQuery.isNotBlank()) catalog.search("给予物品", itemQuery).take(8).forEach { entry ->
+                            TextButton(onClick = {
+                                goodsItem.put("id", entry.id.toIntOrNull() ?: 0)
+                                shopText = shops.toString(2)
+                            }, modifier = Modifier.fillMaxWidth()) { Text("${entry.id}  ${entry.name}") }
+                        }
                         GachaField("物品 ID", goodsItem.optInt("id", 0).toString(), "id") { _, value -> value.toIntOrNull()?.let { goodsItem.put("id", it); shopText = shops.toString(2) } }
                         GachaField("物品数量", goodsItem.optInt("count", 1).toString(), "count") { _, value -> value.toIntOrNull()?.let { goodsItem.put("count", it); shopText = shops.toString(2) } }
                         GachaField("摩拉消耗", item.optInt("scoin", 0).toString(), "scoin") { _, value -> value.toIntOrNull()?.let { item.put("scoin", it); shopText = shops.toString(2) } }
