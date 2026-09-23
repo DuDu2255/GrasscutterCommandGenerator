@@ -389,6 +389,14 @@ private fun RemoteConnectionPanel(
                             .onFailure { onStatus("连接失败：${it.message ?: "未知错误"}") }
                     }
                 }) { Text("检测服务器") }
+                Button(enabled = host.isNotBlank(), onClick = {
+                    scope.launch {
+                        onStatus("查询状态中...")
+                        runCatching { OpenCommandClient(host).serverStatus() }
+                            .onSuccess { onStatus("服务器：$it") }
+                            .onFailure { onStatus("状态查询失败：${it.message ?: "未知错误"}") }
+                    }
+                }) { Text("服务器状态") }
                 Button(enabled = host.isNotBlank() && playerId.isNotBlank(), onClick = {
                     scope.launch {
                         onStatus("验证码发送中...")

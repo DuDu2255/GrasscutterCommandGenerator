@@ -8,7 +8,26 @@ import java.net.URL
 
 /** Android implementation of the same gc-opencommand-plugin HTTP contract as the desktop app. */
 internal class OpenCommandClient(host: String) {
-    private val api = host.trimEnd('/') + "/opencommand/api"
+    private val hostUrl = host.trimEnd('/')
+    private val api = hostUrl + "/opencommand/api"
+
+    suspend fun serverStatus(): String = withContext(Dispatchers.IO) {
+        val connection = (URL(hostUrl + "/status/server").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 10_000
+            readTimeout = 20_000
+        }
+        try {
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(body)
+            val version = json.optString("version", "unknown")
+            val players = json.optInt("playerCount", json.optInt("player_count", -1))
+            val maxPlayers = json.optInt("maxPlayer", json.optInt("max_player", -1))
+            if (players >= 0 && maxPlayers > 0) "$version ($players/$maxPlayers)" else version
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     suspend fun ping(token: String = ""): String = request("ping", null, token).optString("data", "unknown")
 
