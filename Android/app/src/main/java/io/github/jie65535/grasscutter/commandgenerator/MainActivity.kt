@@ -507,9 +507,10 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                 }
             }
             if (template.title == "自定义") {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    catalog.customCommands().filter { values.firstOrNull().isNullOrBlank() || it.name.contains(values.first(), true) || it.id.contains(values.first(), true) }.take(8).forEach { entry ->
-                        AssistChip(onClick = { values = listOf(entry.id) }, label = { Text(entry.name) })
+                OutlinedTextField(searchQuery, { searchQuery = it }, label = { Text("搜索预设名称或命令") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    catalog.customCommands().filter { searchQuery.isBlank() || it.name.contains(searchQuery, true) || it.id.contains(searchQuery, true) }.take(8).forEach { entry ->
+                        TextButton(onClick = { values = listOf(entry.id) }) { Text(entry.name, modifier = Modifier.fillMaxWidth()) }
                     }
                 }
             }
