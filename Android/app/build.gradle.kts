@@ -8,6 +8,11 @@ android {
     namespace = "io.github.jie65535.grasscutter.commandgenerator"
     compileSdk = 35
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     defaultConfig {
         applicationId = "io.github.jie65535.grasscutter.commandgenerator"
         minSdk = 26
