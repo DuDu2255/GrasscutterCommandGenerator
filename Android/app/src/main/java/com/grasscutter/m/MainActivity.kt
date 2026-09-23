@@ -833,6 +833,7 @@ private fun ActivityEditor(context: Context, language: String) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { openLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("打开活动配置") }
                 Button(enabled = activities != null, onClick = { saveLauncher.launch("ActivityConfig.json") }) { Text("导出") }
+                Button(enabled = activities != null, onClick = { status = validateActivities(activities!!) }) { Text("校验") }
                 Button(onClick = {
                     val root = activities ?: JSONArray()
                     root.put(JSONObject().put("activityId", 1).put("activityType", 1).put("scheduleId", 1).put("meetCondList", JSONArray()).put("beginTime", "2020-01-01T00:00:00").put("endTime", "2099-12-31T23:59:59"))
@@ -1100,6 +1101,31 @@ private fun validateShops(shops: JSONArray): String {
         }
     }
     return if (errors.isEmpty()) "商店校验通过" else "发现 ${errors.size} 个商店问题：\n${errors.take(8).joinToString("\n")}"
+}
+
+private fun validateActivities(activities: JSONArray): String {
+    val errors = mutableListOf<String>()
+    val ids = mutableSetOf<Int>()
+    for (index in 0 until activities.length()) {
+        val activity = activities.optJSONObject(index)
+        if (activity == null) {
+            errors += "第 ${index + 1} 项不是对象"
+            continue
+        }
+        val id = activity.optInt("activityId", 0)
+        val type = activity.optInt("activityType", 0)
+        val schedule = activity.optInt("scheduleId", 0)
+        if (id <= 0) errors += "第 ${index + 1} 项 activityId 无效"
+        if (!ids.add(id)) errors += "activityId $id 重复"
+        if (type <= 0) errors += "活动 $id activityType 无效"
+        if (schedule <= 0) errors += "活动 $id scheduleId 无效"
+        val conditions = activity.optJSONArray("meetCondList")
+        if (conditions != null && (0 until conditions.length()).any { conditions.optInt(it, -1) < 0 }) errors += "活动 $id 前置条件无效"
+        val begin = activity.optString("beginTime")
+        val end = activity.optString("endTime")
+        if (begin.isBlank() || end.isBlank()) errors += "活动 $id 时间不能为空"
+    }
+    return if (errors.isEmpty()) "活动配置校验通过" else "发现 ${errors.size} 个活动问题：\n${errors.take(8).joinToString("\n")}"
 }
 
 private fun validateDropTables(monsters: JSONArray): String {
