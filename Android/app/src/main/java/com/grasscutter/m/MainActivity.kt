@@ -160,6 +160,16 @@ private val templates = listOf(
     CommandTemplate("账号管理", listOf("操作 create/delete/rename", "用户名", "UID（可选）"), listOf("create", "", "")) { v -> "/account ${v[0]} ${v[1]} ${v[2]}".trim() },
     CommandTemplate("封禁玩家", listOf("玩家 UID", "Unix 解禁时间", "原因（可选）"), listOf("", "0", "")) { v -> "/ban @${v[0]} ${v[1]} ${v[2]}".trim() },
     CommandTemplate("解禁玩家", listOf("玩家 UID"), listOf("")) { v -> "/unban @${v[0]}" },
+    CommandTemplate("踢出玩家", listOf("玩家 UID（可选）"), listOf("")) { v -> "/kick ${v[0]}".trim() },
+    CommandTemplate("清理玩家物品", listOf("范围 all/wp/art/mat", "等级过滤（可选）"), listOf("all", "lv90")) { v -> "/clear ${v[0]} ${v[1]}".trim() },
+    CommandTemplate("恢复生命", emptyList(), emptyList()) { _ -> "/h" },
+    CommandTemplate("击杀玩家", listOf("玩家 UID（可选）"), listOf("0")) { v -> "/kill ${v[0]}".trim() },
+    CommandTemplate("击杀全部实体", emptyList(), emptyList()) { _ -> "/killall" },
+    CommandTemplate("在线玩家列表", listOf("显示方式 uid/name（可选）"), listOf("uid")) { v -> "/list ${v[0]}".trim() },
+    CommandTemplate("全员传送", emptyList(), emptyList()) { _ -> "/tpall" },
+    CommandTemplate("合作模式", emptyList(), emptyList()) { _ -> "/coop" },
+    CommandTemplate("广播消息", listOf("消息内容"), listOf("Hello")) { v -> "/say ${v[0]}" },
+    CommandTemplate("重载服务器", emptyList(), emptyList()) { _ -> "/reload" },
     CommandTemplate("发送邮件", listOf("收件人 UID 或 all", "标题", "内容", "发件人", "附件：物品ID 数量 等级"), listOf("all", "标题", "内容", "Grasscutter", "")) { v ->
         val attachments = v[4].lines().map { it.trim() }.filter { it.isNotBlank() }.joinToString(" | ") { "/sendMail $it" }
         "/sendMail ${v[0]} | /sendMail ${v[1]} | /sendMail ${v[2].replace("\n", "\\n")} | /sendMail ${v[3]}" + attachments.takeIf { it.isNotBlank() }?.let { " | $it" }.orEmpty() + " | /sendMail finish"
@@ -176,7 +186,8 @@ private fun templateGroup(title: String): String = when (title) {
     "给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成物品", "生成怪物", "生成实体高级", "攻击修改", "攻击注入", "特殊生成" -> "物品角色"
     "传送", "场景", "地城", "过场动画", "天气", "设置属性", "世界等级", "深境螺旋等级", "开放状态", "解锁全部" -> "世界场景"
     "任务", "成就", "成就全部", "成就进度" -> "任务成就"
-    "权限管理", "账号管理", "封禁玩家", "解禁玩家", "发送邮件" -> "玩家管理"
+    "权限管理", "账号管理", "封禁玩家", "解禁玩家", "踢出玩家", "清理玩家物品", "恢复生命", "击杀玩家", "在线玩家列表", "合作模式", "发送邮件" -> "玩家管理"
+    "击杀全部实体", "全员传送", "重载服务器" -> "世界场景"
     "切换元素", "天赋等级", "角色属性", "锁定角色属性", "解锁角色属性", "设置命座", "重置命座", "场景标签" -> "高级操作"
     "自定义", "批量命令" -> "自定义"
     else -> "全部"
