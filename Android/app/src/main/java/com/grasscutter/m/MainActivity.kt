@@ -183,7 +183,7 @@ private fun CommandGeneratorApp() {
     var playerId by remember { mutableStateOf(connection.playerId) }
     var verificationCode by remember { mutableStateOf("") }
     var connectionStatus by remember { mutableStateOf("未连接") }
-    var connected by remember { mutableStateOf(connection.token.isNotBlank()) }
+    var connected by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf(store.load()) }
     var goodStatus by remember { mutableStateOf("") }
     val historyExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -342,9 +342,9 @@ private fun CommandGeneratorApp() {
             item {
                 RemoteConnectionPanel(
                     host = host,
-                    onHostChange = { host = it },
+                    onHostChange = { host = it; connected = false },
                     token = token,
-                    onTokenChange = { token = it },
+                    onTokenChange = { token = it; connected = false },
                     playerId = playerId,
                     onPlayerIdChange = { playerId = it },
                     verificationCode = verificationCode,
@@ -470,7 +470,7 @@ private fun RemoteConnectionPanel(
             OutlinedTextField(verificationCode, onVerificationCodeChange, label = { Text("验证码") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(token, onTokenChange, label = { Text("Token（可直接填写已保存 Token）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(enabled = host.isNotBlank() && verificationCode.isNotBlank(), onClick = {
+                Button(enabled = host.isNotBlank() && verificationCode.isNotBlank() && token.isNotBlank(), onClick = {
                     scope.launch {
                         onStatus("验证中...")
                         val code = verificationCode.trim().toIntOrNull()

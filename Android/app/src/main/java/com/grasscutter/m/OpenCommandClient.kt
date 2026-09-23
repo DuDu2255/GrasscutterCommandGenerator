@@ -8,8 +8,18 @@ import java.net.URL
 
 /** Android implementation of the same gc-opencommand-plugin HTTP contract as the desktop app. */
 internal class OpenCommandClient(host: String) {
-    private val hostUrl = host.trim().let { if (it.startsWith("http://") || it.startsWith("https://")) it else "http://$it" }.trimEnd('/')
+    private val hostUrl = normalizeHost(host)
     private val api = hostUrl + "/opencommand/api"
+
+    private fun normalizeHost(rawHost: String): String {
+        val value = rawHost.trim()
+        require(value.isNotBlank()) { "服务器地址不能为空" }
+        val candidate = if (value.startsWith("http://") || value.startsWith("https://")) value else "http://$value"
+        val parsed = runCatching { URL(candidate) }.getOrElse { error("服务器地址格式无效") }
+        require(parsed.protocol == "http" || parsed.protocol == "https") { "仅支持 HTTP 或 HTTPS 服务器地址" }
+        require(parsed.host.isNotBlank()) { "服务器地址缺少主机名" }
+        return candidate.trimEnd('/')
+    }
 
     suspend fun serverStatus(): String = withContext(Dispatchers.IO) {
         val connection = (URL(hostUrl + "/status/server").openConnection() as HttpURLConnection).apply {
