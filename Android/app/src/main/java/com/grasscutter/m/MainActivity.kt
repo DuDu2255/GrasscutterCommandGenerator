@@ -479,7 +479,12 @@ private fun RemoteConnectionPanel(
                             return@launch
                         }
                         runCatching { OpenCommandClient(host).verify(code, token) }
-                            .onSuccess { newToken -> onToken(newToken); onConnected(newToken); onStatus("OpenCommand 已连接") }
+                            .onSuccess { returnedToken ->
+                                val activeToken = returnedToken.ifBlank { token }
+                                onToken(activeToken)
+                                onConnected(activeToken)
+                                onStatus("OpenCommand 已连接")
+                            }
                             .onFailure { onStatus("验证失败：${it.message ?: "未知错误"}") }
                     }
                 }) { Text("验证并连接") }
