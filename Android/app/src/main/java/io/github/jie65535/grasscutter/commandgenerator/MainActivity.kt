@@ -565,7 +565,13 @@ private fun copy(context: Context, text: String) {
 private class HistoryStore(context: Context) {
     private val preferences = context.getSharedPreferences("command_history", Context.MODE_PRIVATE)
     fun load(): List<String> = runCatching {
-        val array = JSONArray(preferences.getString("items_json", "[]"))
+        val stored = preferences.getString("items_json", null)
+        if (stored == null) {
+            val legacy = preferences.getStringSet("items", emptySet())?.toList().orEmpty()
+            if (legacy.isNotEmpty()) save(legacy)
+            return@runCatching legacy.take(20)
+        }
+        val array = JSONArray(stored)
         List(array.length()) { array.getString(it) }.take(20)
     }.getOrDefault(emptyList())
     fun add(command: String): List<String> = (listOf(command) + load().filter { it != command }).take(20).also { save(it) }
