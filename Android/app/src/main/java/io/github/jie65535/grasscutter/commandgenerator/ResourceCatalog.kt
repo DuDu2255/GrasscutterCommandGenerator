@@ -42,7 +42,8 @@ internal class ResourceCatalog(private val context: Context) {
 
     private fun load(kind: String): List<CatalogEntry> {
         val file = when (kind) {
-            "给予物品", "给予圣遗物", "生成物品" -> "upstream/zh-cn/Item.txt"
+            "给予物品", "生成物品" -> "upstream/zh-cn/Item.txt"
+            "给予圣遗物" -> "upstream/zh-cn/Artifact.txt"
             "给予角色" -> "upstream/zh-cn/Avatar.txt"
             "给予武器" -> "upstream/zh-cn/Weapon.txt"
             "生成怪物" -> "upstream/zh-cn/Monsters.txt"

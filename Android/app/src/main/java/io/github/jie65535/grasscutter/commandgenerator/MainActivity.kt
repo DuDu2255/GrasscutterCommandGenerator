@@ -273,6 +273,7 @@ private fun RemoteConnectionPanel(
 @Composable
 private fun CommandForm(template: CommandTemplate, context: Context, snackbar: SnackbarHostState, scope: kotlinx.coroutines.CoroutineScope, connected: Boolean, host: String, token: String, onSaved: (String) -> Unit) {
     var values by rememberSaveable(template.title) { mutableStateOf(template.example) }
+    var searchQuery by rememberSaveable(template.title + "-search") { mutableStateOf("") }
     val catalog = remember { ResourceCatalog(context) }
     val command = template.render(values)
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -288,12 +289,23 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                 )
             }
             if (template.title in setOf("给予物品", "给予角色", "给予武器", "给予圣遗物", "生成怪物", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就")) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    catalog.search(template.title, values.firstOrNull().orEmpty()).forEach { entry ->
-                        AssistChip(
-                            onClick = { values = values.toMutableList().also { it[0] = entry.id } },
-                            label = { Text("${entry.id} ${entry.name}") },
-                        )
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("搜索名称或 ID") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    catalog.search(template.title, searchQuery).forEach { entry ->
+                        TextButton(
+                            onClick = {
+                                val idField = if (template.title == "任务" || template.title == "成就") 1 else 0
+                                values = values.toMutableList().also { it[idField] = entry.id }
+                                searchQuery = "${entry.id} ${entry.name}"
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("${entry.id}  ${entry.name}", modifier = Modifier.fillMaxWidth()) }
                     }
                 }
             }
