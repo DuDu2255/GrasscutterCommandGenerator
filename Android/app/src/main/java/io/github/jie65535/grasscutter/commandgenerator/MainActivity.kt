@@ -315,6 +315,10 @@ private fun CommandGeneratorApp() {
                         connection.save(host.trim(), "", playerId)
                         connectionStatus = "已断开"
                     },
+                    onSave = {
+                        connection.save(host.trim(), token.trim(), playerId.trim())
+                        connectionStatus = "配置已保存"
+                    },
                 )
             }
             item {
@@ -368,6 +372,7 @@ private fun RemoteConnectionPanel(
     onConnected: (String) -> Unit,
     onToken: (String) -> Unit,
     onDisconnected: () -> Unit,
+    onSave: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -405,6 +410,7 @@ private fun RemoteConnectionPanel(
                     }
                 }) { Text("验证并连接") }
                 TextButton(enabled = connected, onClick = onDisconnected) { Text("断开连接") }
+                TextButton(onClick = onSave) { Text("保存配置") }
                 Text(if (connected) "已连接" else status, color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
             }
             if (status.isNotBlank() && !connected) Text(status, style = MaterialTheme.typography.bodySmall)
