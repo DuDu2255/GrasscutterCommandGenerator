@@ -755,6 +755,10 @@ private fun ShopEditor(context: Context) {
                     root.put(JSONObject().put("shopId", root.length() + 1).put("items", JSONArray()))
                     shopText = root.toString(2); shopIndex = root.length() - 1; goodsIndex = 0; status = "已添加商店"
                 }) { Text("新增商店") }
+                Button(enabled = shop != null, onClick = {
+                    shops?.remove(shopIndex)
+                    shopText = shops?.toString(2).orEmpty(); shopIndex = (shopIndex - 1).coerceAtLeast(0); goodsIndex = 0; status = "已删除商店"
+                }) { Text("删除商店") }
             }
             if (shops != null) {
                 Text("商店列表", style = MaterialTheme.typography.labelLarge)
@@ -907,6 +911,10 @@ private fun DropEditor(context: Context, language: String) {
                     root.put(JSONObject().put("monsterId", 20010101).put("dropDataList", JSONArray()))
                     dropText = root.toString(2); monsterIndex = root.length() - 1; dropIndex = 0; status = "已添加怪物掉落表"
                 }) { Text("新增怪物") }
+                Button(enabled = monster != null, onClick = {
+                    monsters?.remove(monsterIndex)
+                    dropText = monsters?.toString(2).orEmpty(); monsterIndex = (monsterIndex - 1).coerceAtLeast(0); dropIndex = 0; status = "已删除怪物掉落表"
+                }) { Text("删除怪物") }
             }
             if (monsters != null) {
                 OutlinedTextField(query, { query = it }, label = { Text("搜索怪物名称或 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
