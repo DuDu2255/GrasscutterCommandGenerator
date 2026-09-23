@@ -695,6 +695,18 @@ private fun validateMailAttachments(text: String): String {
     return ""
 }
 
+private fun validateAdvancedSpawn(values: List<String>): String {
+    if (values.size < 6) return "高级生成参数不完整"
+    if (values[0].trim().toIntOrNull() == null) return "实体 ID 必须是数字"
+    val count = values[1].trim().toIntOrNull() ?: return "数量必须是数字"
+    if (count <= 0) return "数量必须大于 0"
+    if (values[2].trim().toIntOrNull()?.let { it >= 1 } != true) return "等级必须是正整数"
+    if (values[3].trim().toIntOrNull()?.let { it >= 0 } != true) return "半径必须是非负整数"
+    if (values[4].trim().toIntOrNull()?.let { it >= 0 } != true) return "高度必须是非负整数"
+    if (values[5].trim().toIntOrNull()?.let { it > 0 } != true) return "间隔必须大于 0"
+    return ""
+}
+
 @Composable
 private fun ShopEditor(context: Context) {
     var shopText by rememberSaveable { mutableStateOf("") }
@@ -1168,6 +1180,7 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
     val validationError = when (template.title) {
         "给予圣遗物" -> validateArtifactValues(values)
         "发送邮件" -> validateMailAttachments(values.getOrNull(4).orEmpty())
+        "生成实体高级" -> validateAdvancedSpawn(values)
         else -> ""
     }
     Card(modifier = Modifier.fillMaxWidth()) {
