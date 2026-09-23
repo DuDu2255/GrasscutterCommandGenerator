@@ -19,7 +19,6 @@ jobs:
           distribution: temurin
           java-version: "17"
       - name: Configure release signing
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -27,6 +26,10 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "No Android signing key configured; building an unsigned release APK."
+            exit 0
+          fi
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/grasscutter-release.jks"
           echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/grasscutter-release.jks" >> "$GITHUB_ENV"
           echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
