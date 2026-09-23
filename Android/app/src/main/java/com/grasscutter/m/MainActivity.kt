@@ -340,7 +340,7 @@ private fun CommandGeneratorApp() {
                 }
             }
             item {
-                GachaBannerEditor(context)
+                GachaBannerEditor(context, language)
             }
             item {
                 RemoteConnectionPanel(
@@ -408,11 +408,13 @@ private fun CommandGeneratorApp() {
 }
 
 @Composable
-private fun GachaBannerEditor(context: Context) {
+private fun GachaBannerEditor(context: Context, language: String) {
     var bannersText by rememberSaveable { mutableStateOf("") }
     var query by rememberSaveable { mutableStateOf("") }
+    var itemQuery by rememberSaveable { mutableStateOf("") }
     var selectedIndex by rememberSaveable { mutableStateOf(0) }
     var status by rememberSaveable { mutableStateOf("") }
+    val catalog = remember(language) { ResourceCatalog(context, language) }
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runCatching {
             bannersText = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -472,6 +474,7 @@ private fun GachaBannerEditor(context: Context) {
                         selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
                         status = "已删除卡池"
                     }) { Text("删除选中") }
+                    Button(onClick = { status = validateGachaBanners(array) }) { Text("校验") }
                 }
                 Column(modifier = Modifier.fillMaxWidth()) {
                     matchingIndexes.forEach { index ->
@@ -506,6 +509,26 @@ private fun GachaBannerEditor(context: Context) {
                     GachaField("抽卡次数限制", selected.optInt("gachaTimesLimit", Int.MAX_VALUE).toString(), "gachaTimesLimit") { key, value -> value.toIntOrNull()?.coerceAtLeast(0)?.let { selected.put(key, it); bannersText = array.toString(2) } }
                     GachaField("UP 四星 ID（逗号分隔）", jsonIntArrayText(selected, "rateUpItems4"), "rateUpItems4") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
                     GachaField("UP 五星 ID（逗号分隔）", jsonIntArrayText(selected, "rateUpItems5"), "rateUpItems5") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
+                    OutlinedTextField(itemQuery, { itemQuery = it }, label = { Text("搜索角色或武器名称/ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    if (itemQuery.isNotBlank()) {
+                        val itemResults = (catalog.search("给予角色", itemQuery) + catalog.search("给予武器", itemQuery)).distinctBy { it.id }.take(8)
+                        itemResults.forEach { entry ->
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text("${entry.id}  ${entry.name}", style = MaterialTheme.typography.bodyMedium)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = {
+                                        appendUniqueInt(selected, "rateUpItems4", entry.id)
+                                        bannersText = array.toString(2)
+                                    }) { Text("加入四星 UP") }
+                                    TextButton(onClick = {
+                                        appendUniqueInt(selected, "rateUpItems5", entry.id)
+                                        bannersText = array.toString(2)
+                                    }) { Text("加入五星 UP") }
+                                }
+                            }
+                        }
+                        if (itemResults.isEmpty()) Text("没有找到匹配的角色或武器", style = MaterialTheme.typography.bodySmall)
+                    }
                     GachaField("普通三星池 ID", jsonIntArrayText(selected, "fallbackItems3"), "fallbackItems3") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
                     GachaField("普通四星角色池 ID", jsonIntArrayText(selected, "fallbackItems4Pool1"), "fallbackItems4Pool1") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
                     GachaField("普通四星武器池 ID", jsonIntArrayText(selected, "fallbackItems4Pool2"), "fallbackItems4Pool2") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
@@ -559,6 +582,42 @@ private fun parseBoolean(value: String): Boolean? = when (value.trim().lowercase
     "true" -> true
     "false" -> false
     else -> null
+}
+
+private fun appendUniqueInt(objectValue: JSONObject, key: String, rawId: String) {
+    val id = rawId.toIntOrNull() ?: return
+    val current = objectValue.optJSONArray(key) ?: JSONArray()
+    if ((0 until current.length()).none { current.optInt(it) == id }) current.put(id)
+    objectValue.put(key, current)
+}
+
+private fun validateGachaBanners(banners: JSONArray): String {
+    if (banners.length() == 0) return "校验失败：卡池列表为空"
+    val identities = mutableSetOf<String>()
+    val problems = mutableListOf<String>()
+    for (index in 0 until banners.length()) {
+        val banner = banners.optJSONObject(index)
+        if (banner == null) {
+            problems += "第 ${index + 1} 项不是 JSON 对象"
+            continue
+        }
+        val name = banner.optString("comment", "第 ${index + 1} 项")
+        val gachaType = banner.optInt("gachaType", 0)
+        val scheduleId = banner.optInt("scheduleId", 0)
+        if (gachaType <= 0) problems += "$name：gachaType 无效"
+        if (scheduleId <= 0) problems += "$name：scheduleId 无效"
+        if (!identities.add("$gachaType:$scheduleId")) problems += "$name：类型和计划 ID 重复"
+        if (banner.optString("prefabPath").isBlank()) problems += "$name：prefabPath 为空"
+        if (banner.optString("titlePath").isBlank()) problems += "$name：titlePath 为空"
+        val begin = banner.optLong("beginTime", 0)
+        val end = banner.optLong("endTime", 0)
+        if (end > 0 && end <= begin) problems += "$name：结束时间必须晚于开始时间"
+        listOf("weights4", "weights5", "poolBalanceWeights4", "poolBalanceWeights5").forEach { key ->
+            val weights = banner.optJSONArray(key) ?: return@forEach
+            if ((0 until weights.length()).any { weights.optJSONArray(it)?.length() != 2 }) problems += "$name：$key 必须由 [次数, 权重] 组成"
+        }
+    }
+    return if (problems.isEmpty()) "校验通过：${banners.length()} 个卡池" else "发现 ${problems.size} 个问题：\n${problems.take(8).joinToString("\n")}"
 }
 
 @Composable
