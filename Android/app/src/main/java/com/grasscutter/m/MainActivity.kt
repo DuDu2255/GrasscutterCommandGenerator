@@ -292,6 +292,7 @@ private fun CommandGeneratorApp() {
         ) {
             item {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("版本 ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelSmall)
                     Text("资源语言：$language", modifier = Modifier.padding(top = 8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         TextButton(onClick = {
