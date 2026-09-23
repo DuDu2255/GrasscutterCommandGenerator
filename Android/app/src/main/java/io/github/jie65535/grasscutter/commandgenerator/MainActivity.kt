@@ -72,22 +72,35 @@ private data class CommandTemplate(
 )
 
 private val templates = listOf(
-    CommandTemplate("给予物品", listOf("物品 ID", "数量", "玩家 UID"), listOf("223", "1", "")) { v ->
-        "/give ${v[0]} ${v[1]}" + v[2].takeIf { it.isNotBlank() }?.let { " @${it}" }.orEmpty()
+    CommandTemplate("给予物品", listOf("物品 ID", "数量", "等级", "玩家 UID"), listOf("223", "1", "", "")) { v ->
+        "/give ${v[0]} x${v[1]}" + v[2].takeIf { it.isNotBlank() }?.let { " lv$it" }.orEmpty() + v[3].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
-    CommandTemplate("给予角色", listOf("角色 ID", "等级 (1-90)", "玩家 UID"), listOf("10000007", "90", "")) { v ->
-        "/givechar ${v[0]} ${v[1]}" + v[2].takeIf { it.isNotBlank() }?.let { " @${it}" }.orEmpty()
+    CommandTemplate("给予角色", listOf("角色 ID", "等级 (1-90)", "命座 (0-6)", "技能等级", "玩家 UID"), listOf("10000007", "90", "0", "", "")) { v ->
+        "/give ${v[0]} lv${v[1]} c${v[2]}" + v[3].takeIf { it.isNotBlank() }?.let { " sl$it" }.orEmpty() + v[4].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
-    CommandTemplate("给予武器", listOf("武器 ID", "等级 (1-90)", "精炼 (1-5)", "玩家 UID"), listOf("11501", "90", "5", "")) { v ->
-        "/give ${v[0]} 1 lv${v[1]} r${v[2]}" + v[3].takeIf { it.isNotBlank() }?.let { " @${it}" }.orEmpty()
+    CommandTemplate("给予武器", listOf("武器 ID", "数量", "等级 (1-90)", "精炼 (1-5)", "玩家 UID"), listOf("11501", "1", "90", "1", "")) { v ->
+        "/give ${v[0]} x${v[1]} lv${v[2]} r${v[3]}" + v[4].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
-    CommandTemplate("给予圣遗物", listOf("圣遗物 ID", "数量", "玩家 UID"), listOf("15001", "1", "")) { v ->
-        "/give ${v[0]} ${v[1]}" + v[2].takeIf { it.isNotBlank() }?.let { " @${it}" }.orEmpty()
+    CommandTemplate("给予圣遗物", listOf("圣遗物 ID", "等级 (0-20)", "玩家 UID"), listOf("15001", "20", "")) { v ->
+        "/give ${v[0]} lv${v[1]}" + v[2].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
+    },
+    CommandTemplate("生成怪物", listOf("怪物 ID", "数量", "等级"), listOf("20010101", "1", "1")) { v ->
+        "/spawn ${v[0]} ${v[1]} ${v[2]}"
+    },
+    CommandTemplate("生成物品", listOf("物品 ID", "数量", "等级"), listOf("223", "1", "1")) { v ->
+        "/spawn ${v[0]} x${v[1]} lv${v[2]}"
     },
     CommandTemplate("传送", listOf("场景 ID", "X 坐标", "Y 坐标", "Z 坐标"), listOf("3", "0", "0", "0")) { v ->
-        "/teleport ${v.joinToString(" ")}" 
+        "/tp ${v[1]} ${v[2]} ${v[3]} ${v[0]}"
     },
-    CommandTemplate("天气", listOf("天气 ID", "场景 ID"), listOf("0", "3")) { v -> "/weather ${v[0]} ${v[1]}" },
+    CommandTemplate("场景", listOf("场景 ID"), listOf("3")) { v -> "/scene ${v[0]}" },
+    CommandTemplate("地城", listOf("地城 ID"), listOf("")) { v -> "/dungeon ${v[0]}" },
+    CommandTemplate("过场动画", listOf("过场 ID"), listOf("")) { v -> "/cutscene ${v[0]}" },
+    CommandTemplate("天气", listOf("天气 ID"), listOf("1")) { v -> "/weather ${v[0]}" },
+    CommandTemplate("任务", listOf("操作 add/finish", "任务 ID"), listOf("add", "")) { v -> "/quest ${v[0]} ${v[1]}" },
+    CommandTemplate("成就", listOf("操作 grant/revoke", "成就 ID"), listOf("grant", "")) { v -> "/achievement ${v[0]} ${v[1]}" },
+    CommandTemplate("设置属性", listOf("属性名", "数值"), listOf("worldlevel", "8")) { v -> "/prop ${v[0]} ${v[1]}" },
+    CommandTemplate("解锁全部", emptyList(), emptyList()) { _ -> "/unlockall" },
     CommandTemplate("自定义", listOf("完整指令"), listOf("/help")) { v -> v[0] },
 )
 
@@ -146,14 +159,11 @@ private fun CommandGeneratorApp() {
             }
             item {
                 Text("指令类型", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    templates.take(4).forEach { template ->
-                        AssistChip(onClick = { selectedTitle = template.title }, label = { Text(template.title) })
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                    templates.drop(4).forEach { template ->
-                        AssistChip(onClick = { selectedTitle = template.title }, label = { Text(template.title) })
+                templates.chunked(4).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                        row.forEach { template ->
+                            AssistChip(onClick = { selectedTitle = template.title }, label = { Text(template.title) })
+                        }
                     }
                 }
             }
@@ -247,7 +257,7 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (template.title in setOf("给予物品", "给予角色", "给予武器", "给予圣遗物")) {
+            if (template.title in setOf("给予物品", "给予角色", "给予武器", "给予圣遗物", "生成怪物", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就")) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     catalog.search(template.title, values.firstOrNull().orEmpty()).forEach { entry ->
                         AssistChip(
