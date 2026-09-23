@@ -724,6 +724,7 @@ private fun ShopEditor(context: Context, language: String) {
     var shopIndex by rememberSaveable { mutableStateOf(0) }
     var goodsIndex by rememberSaveable { mutableStateOf(0) }
     var itemQuery by rememberSaveable { mutableStateOf("") }
+    var costQuery by rememberSaveable { mutableStateOf("") }
     var status by rememberSaveable { mutableStateOf("") }
     val catalog = remember(language) { ResourceCatalog(context, language) }
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -804,6 +805,14 @@ private fun ShopEditor(context: Context, language: String) {
                         GachaField("创世结晶消耗", item.optInt("mcoin", 0).toString(), "mcoin") { _, value -> value.toIntOrNull()?.let { item.put("mcoin", it); shopText = shops.toString(2) } }
                         GachaField("原石消耗", item.optInt("hcoin", 0).toString(), "hcoin") { _, value -> value.toIntOrNull()?.let { item.put("hcoin", it); shopText = shops.toString(2) } }
                         GachaField("购买限制", item.optInt("buyLimit", 1).toString(), "buyLimit") { _, value -> value.toIntOrNull()?.let { item.put("buyLimit", it); shopText = shops.toString(2) } }
+                        OutlinedTextField(costQuery, { costQuery = it }, label = { Text("搜索额外消耗物品") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        if (costQuery.isNotBlank()) catalog.search("给予物品", costQuery).take(6).forEach { entry ->
+                            TextButton(onClick = {
+                                val costs = item.optJSONArray("costItemList") ?: JSONArray().also { item.put("costItemList", it) }
+                                costs.put(JSONObject().put("id", entry.id.toIntOrNull() ?: 0).put("count", 1))
+                                shopText = shops.toString(2)
+                            }, modifier = Modifier.fillMaxWidth()) { Text("${entry.id}  ${entry.name}（加入消耗）") }
+                        }
                         GachaField("额外消耗物品 JSON", item.optJSONArray("costItemList")?.toString() ?: "[]", "costItemList") { key, value ->
                             runCatching {
                                 val parsed = JSONTokener(value).nextValue()
