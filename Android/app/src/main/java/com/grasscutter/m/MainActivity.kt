@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -299,7 +300,7 @@ private fun CommandGeneratorApp() {
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding).imePadding(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -439,6 +440,7 @@ private fun CommandGeneratorApp() {
                 history = store.add(command)
             }) }
             if (selectedModule == "命令生成") item { SpawnPresetPanel(context, snackbar, scope) }
+            if (selectedModule == "命令生成") item { CombatPresetPanel(context, snackbar, scope) }
             if (selectedModule == "命令生成") item { HorizontalDivider() }
             if (selectedModule == "命令生成") item {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -523,6 +525,64 @@ private fun SpawnPresetPanel(context: Context, snackbar: SnackbarHostState, scop
             }
         }
     }
+}
+
+@Composable
+private fun CombatPresetPanel(context: Context, snackbar: SnackbarHostState, scope: kotlinx.coroutines.CoroutineScope) {
+    var mode by rememberSaveable { mutableStateOf("set") }
+    var skill by rememberSaveable { mutableStateOf("skill") }
+    var entityId by rememberSaveable { mutableStateOf("20010101") }
+    var parameters by rememberSaveable { mutableStateOf("20010101 5 10") }
+    var name by rememberSaveable { mutableStateOf("") }
+    var presets by remember { mutableStateOf(loadCombatPresets(context.getSharedPreferences("combat_presets", Context.MODE_PRIVATE))) }
+    val command = if (mode == "set") "/at set $skill $entityId" else if (mode == "inject") "/at $parameters" else "/snoospawn $entityId $parameters"
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("攻击与特殊生成预设", style = MaterialTheme.typography.titleLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("set", "inject", "snoospawn").forEach { option ->
+                    TextButton(onClick = { mode = option }) { Text(if (mode == option) "[$option]" else option) }
+                }
+            }
+            if (mode == "set") {
+                OutlinedTextField(skill, { skill = it }, label = { Text("技能类型") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(entityId, { entityId = it }, label = { Text("实体 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            } else {
+                OutlinedTextField(parameters, { parameters = it }, label = { Text("注入或特殊生成参数") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (mode == "snoospawn") OutlinedTextField(entityId, { entityId = it }, label = { Text("实体 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+            Text(command, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("预设名称") }, singleLine = true, modifier = Modifier.weight(1f))
+                Button(enabled = name.isNotBlank(), onClick = {
+                    val preferences = context.getSharedPreferences("combat_presets", Context.MODE_PRIVATE)
+                    presets = (presets.filter { it.first != name.trim() } + (name.trim() to command)).takeLast(30)
+                    saveCombatPresets(preferences, presets); name = ""
+                    scope.launch { snackbar.showSnackbar("攻击预设已保存") }
+                }) { Text("保存") }
+            }
+            presets.forEach { (presetName, presetCommand) ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { parameters = presetCommand.removePrefix("/at ").removePrefix("/snoospawn ") }, modifier = Modifier.weight(1f)) { Text("$presetName  $presetCommand") }
+                    TextButton(onClick = {
+                        presets = presets.filter { it.first != presetName }
+                        saveCombatPresets(context.getSharedPreferences("combat_presets", Context.MODE_PRIVATE), presets)
+                    }) { Text("删除") }
+                }
+            }
+        }
+    }
+}
+
+private fun loadCombatPresets(preferences: android.content.SharedPreferences): List<Pair<String, String>> = runCatching {
+    val array = JSONArray(preferences.getString("items", "[]"))
+    List(array.length()) { array.optJSONObject(it)?.let { item -> item.optString("name") to item.optString("command") } ?: ("" to "") }.filter { it.first.isNotBlank() && it.second.isNotBlank() }
+}.getOrDefault(emptyList())
+
+private fun saveCombatPresets(preferences: android.content.SharedPreferences, presets: List<Pair<String, String>>) {
+    val array = JSONArray()
+    presets.forEach { (name, command) -> array.put(JSONObject().put("name", name).put("command", command)) }
+    preferences.edit().putString("items", array.toString()).apply()
 }
 
 private fun loadSpawnPresets(preferences: android.content.SharedPreferences): List<Pair<String, String>> = runCatching {
@@ -1382,6 +1442,8 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
     var values by rememberSaveable(template.title) { mutableStateOf(template.example) }
     var searchQuery by rememberSaveable(template.title + "-search") { mutableStateOf("") }
     var substatQuery by rememberSaveable(template.title + "-substat-search") { mutableStateOf("") }
+    var artifactPartQuery by rememberSaveable(template.title + "-artifact-part") { mutableStateOf("") }
+    var artifactStarQuery by rememberSaveable(template.title + "-artifact-star") { mutableStateOf("") }
     val catalog = remember(language) { ResourceCatalog(context, language) }
     val mailExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null && template.title == "发送邮件") runCatching {
@@ -1394,6 +1456,20 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
             mail.put("attachments", attachments)
             context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(mail.toString(2)) }
         }.onFailure { scope.launch { snackbar.showSnackbar("邮件导出失败：${it.message ?: "格式错误"}") } }
+    }
+    val mailImportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && template.title == "发送邮件") runCatching {
+            val mail = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { JSONObject(it.readText()) } ?: error("文件为空")
+            val attachments = mail.optJSONArray("attachments") ?: JSONArray()
+            val lines = (0 until attachments.length()).mapNotNull { index ->
+                val attachment = attachments.optJSONObject(index) ?: return@mapNotNull null
+                "${attachment.optInt("itemId", 0)} ${attachment.optInt("count", 1)} ${attachment.optInt("level", 1)}"
+            }
+            values = values.toMutableList().also {
+                it[0] = mail.optString("to", it[0]); it[1] = mail.optString("title", it[1]); it[2] = mail.optString("content", it[2]); it[3] = mail.optString("sender", it[3]); it[4] = lines.joinToString("\n")
+            }
+            scope.launch { snackbar.showSnackbar("邮件 JSON 已导入") }
+        }.onFailure { scope.launch { snackbar.showSnackbar("邮件导入失败：${it.message ?: "格式错误"}") } }
     }
     val command = template.render(values)
     val validationError = when (template.title) {
@@ -1424,7 +1500,17 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    val results = catalog.search(template.title, searchQuery)
+                    val baseResults = catalog.search(template.title, searchQuery)
+                    val results = if (template.title == "给予圣遗物") baseResults.filter { entry ->
+                        (artifactPartQuery.isBlank() || entry.id.takeLast(1) == artifactPartQuery.trim()) &&
+                            (artifactStarQuery.isBlank() || entry.id.dropLast(1).takeLast(1) == artifactStarQuery.trim())
+                    } else baseResults
+                    if (template.title == "给予圣遗物") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(artifactPartQuery, { artifactPartQuery = it }, label = { Text("部位尾号") }, singleLine = true, modifier = Modifier.weight(1f))
+                            OutlinedTextField(artifactStarQuery, { artifactStarQuery = it }, label = { Text("星级尾号") }, singleLine = true, modifier = Modifier.weight(1f))
+                        }
+                    }
                     results.forEach { entry ->
                         TextButton(
                             onClick = {
@@ -1504,7 +1590,10 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     }
                     TextButton(onClick = { values = values.toMutableList().also { it[4] = "" } }) { Text("清空附件") }
                 }
-                Button(enabled = validationError.isBlank(), onClick = { mailExportLauncher.launch("grasscutter-mail.json") }) { Text("导出邮件 JSON") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(enabled = validationError.isBlank(), onClick = { mailExportLauncher.launch("grasscutter-mail.json") }) { Text("导出邮件 JSON") }
+                    Button(onClick = { mailImportLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("导入邮件 JSON") }
+                }
             }
             if (template.title == "自定义") {
                 OutlinedTextField(searchQuery, { searchQuery = it }, label = { Text("搜索预设名称或命令") }, singleLine = true, modifier = Modifier.fillMaxWidth())
