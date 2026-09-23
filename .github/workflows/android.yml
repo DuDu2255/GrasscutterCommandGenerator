@@ -3,7 +3,7 @@ name: Android APK
 on:
   push:
     branches: [main, android]
-    paths: ["Android/**", "Source/GrasscutterTools/Resources/**"]
+    paths: ["Android/**", "Source/GrasscutterTools/Resources/**", ".github/workflows/android.yml"]
   workflow_dispatch:
 
 jobs:
