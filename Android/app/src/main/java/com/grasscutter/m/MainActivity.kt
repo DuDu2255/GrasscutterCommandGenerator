@@ -258,6 +258,7 @@ private fun CommandGeneratorApp() {
     }
     var selectedTitle by rememberSaveable { mutableStateOf(templates.first().title) }
     var selectedGroup by rememberSaveable { mutableStateOf("全部") }
+    var selectedModule by rememberSaveable { mutableStateOf("命令生成") }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val visibleTemplates = templates.filter { selectedGroup == "全部" || templateGroup(it.title) == selectedGroup }
@@ -311,19 +312,26 @@ private fun CommandGeneratorApp() {
                 }
             }
             item {
+                ScrollableTabRow(selectedTabIndex = listOf("命令生成", "编辑器", "设置").indexOf(selectedModule).coerceAtLeast(0)) {
+                    listOf("命令生成", "编辑器", "设置").forEach { module ->
+                        Tab(selected = selectedModule == module, onClick = { selectedModule = module }, text = { Text(module) })
+                    }
+                }
+            }
+            if (selectedModule == "命令生成") item {
                 ScrollableTabRow(selectedTabIndex = templateGroups.indexOf(selectedGroup).coerceAtLeast(0)) {
                     templateGroups.forEach { group ->
                         Tab(selected = selectedGroup == group, onClick = { selectedGroup = group }, text = { Text(group) })
                     }
                 }
             }
-            item {
+            if (selectedModule == "命令生成") item {
                 Button(onClick = { goodLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }) {
                     Text("导入 GOOD 存档")
                 }
                 if (goodStatus.isNotBlank()) Text(goodStatus, style = MaterialTheme.typography.bodySmall)
             }
-            item {
+            if (selectedModule == "编辑器") item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("JSON 配置编辑器", style = MaterialTheme.typography.titleLarge)
@@ -354,28 +362,28 @@ private fun CommandGeneratorApp() {
                     }
                 }
             }
-            item {
+            if (selectedModule == "编辑器") item {
                 GachaBannerEditor(context, language)
             }
-            item {
+            if (selectedModule == "编辑器") item {
                 ShopEditor(context)
             }
-            item {
+            if (selectedModule == "编辑器") item {
                 ActivityEditor(context, language)
             }
-            item {
+            if (selectedModule == "编辑器") item {
                 DropEditor(context, language)
             }
-            item {
+            if (selectedModule == "编辑器") item {
                 TextMapBrowser(context)
             }
-            item {
+            if (selectedModule == "设置") item {
                 HotkeyPresetEditor(context)
             }
-            item {
+            if (selectedModule == "设置") item {
                 ProxySettingsEditor(context)
             }
-            item {
+            if (selectedModule == "设置") item {
                 RemoteConnectionPanel(
                     host = host,
                     onHostChange = { host = it; connected = false },
@@ -406,7 +414,7 @@ private fun CommandGeneratorApp() {
                     },
                 )
             }
-            item {
+            if (selectedModule == "命令生成") item {
                 Text("指令类型", style = MaterialTheme.typography.titleMedium)
                 visibleTemplates.chunked(4).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
@@ -416,11 +424,11 @@ private fun CommandGeneratorApp() {
                     }
                 }
             }
-            item(key = selected.title + language) { CommandForm(selected, context, snackbar, scope, connected, host, token, language, onSaved = { command ->
+            if (selectedModule == "命令生成") item(key = selected.title + language) { CommandForm(selected, context, snackbar, scope, connected, host, token, language, onSaved = { command ->
                 history = store.add(command)
             }) }
-            item { HorizontalDivider() }
-            item {
+            if (selectedModule == "命令生成") item { HorizontalDivider() }
+            if (selectedModule == "命令生成") item {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text("最近生成", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -430,7 +438,7 @@ private fun CommandGeneratorApp() {
                     }
                 }
             }
-            items(history, key = { it }) { command ->
+            if (selectedModule == "命令生成") items(history, key = { it }) { command ->
                 HistoryRow(command, connected, host, token, scope, snackbar, onCopy = { copy(context, command); scope.launch { snackbar.showSnackbar("已复制指令") } }, onDelete = {
                     history = store.remove(command)
                 })
