@@ -42,6 +42,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.runtime.Composable
@@ -68,7 +70,7 @@ import java.net.URL
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { CommandGeneratorApp() } }
+        setContent { CommandGeneratorApp() }
     }
 }
 
@@ -89,8 +91,10 @@ private val templates = listOf(
     CommandTemplate("给予武器", listOf("武器 ID", "数量", "等级 (1-90)", "精炼 (1-5)", "玩家 UID"), listOf("11501", "1", "90", "1", "")) { v ->
         "/give ${v[0]} x${v[1]} lv${v[2]} r${v[3]}" + v[4].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
-    CommandTemplate("给予圣遗物", listOf("圣遗物 ID", "等级 (0-20)", "玩家 UID"), listOf("15001", "20", "")) { v ->
-        "/give ${v[0]} lv${v[1]}" + v[2].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
+    CommandTemplate("给予圣遗物", listOf("圣遗物 ID", "等级 (0-20)", "主属性 ID（可选）", "副属性 ID 列表（可选）", "玩家 UID"), listOf("15001", "20", "", "", "")) { v ->
+        val level = v[1].toIntOrNull()?.coerceIn(0, 20) ?: 0
+        val subStats = v[3].split(',', ' ', ';').mapNotNull { it.trim().toIntOrNull() }.distinct().joinToString(" ")
+        "/give ${v[0].trim()} lv$level" + v[2].trim().takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + subStats.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + v[4].trim().takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
     CommandTemplate("生成怪物", listOf("怪物 ID", "数量", "等级"), listOf("20010101", "1", "1")) { v ->
         "/spawn ${v[0]} ${v[1]} ${v[2]}"
@@ -150,6 +154,7 @@ private fun CommandGeneratorApp() {
     val store = remember { HistoryStore(context) }
     val appPreferences = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
     var language by remember { mutableStateOf(appPreferences.getString("language", "zh-cn") ?: "zh-cn") }
+    var darkTheme by remember { mutableStateOf(appPreferences.getBoolean("dark_theme", false)) }
     val connection = remember { OpenCommandSettings(context) }
     var host by remember { mutableStateOf(connection.host) }
     var token by remember { mutableStateOf(connection.token) }
@@ -174,6 +179,7 @@ private fun CommandGeneratorApp() {
             context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) jsonName = cursor.getString(0)
             }
+            if (!jsonName.endsWith(".json", ignoreCase = true)) jsonName += ".json"
             JSONTokener(jsonText).nextValue()
             jsonStatus = "已打开并通过 JSON 校验"
         }.onFailure { jsonStatus = "打开失败：${it.message ?: "JSON 格式错误"}" }
@@ -194,6 +200,7 @@ private fun CommandGeneratorApp() {
         if (selectedTitle !in visibleTemplates.map { it.title }) selectedTitle = selected.title
     }
 
+    MaterialTheme(colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -215,6 +222,10 @@ private fun CommandGeneratorApp() {
                         language = listOf("zh-cn", "zh-tw", "en-us", "ru-ru").let { it[(it.indexOf(language) + 1) % it.size] }
                         appPreferences.edit().putString("language", language).apply()
                     }) { Text("切换语言") }
+                    TextButton(onClick = {
+                        darkTheme = !darkTheme
+                        appPreferences.edit().putBoolean("dark_theme", darkTheme).apply()
+                    }) { Text(if (darkTheme) "浅色主题" else "深色主题") }
                 }
             }
             item {
@@ -237,6 +248,17 @@ private fun CommandGeneratorApp() {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = { jsonOpenLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("打开 JSON") }
                             Button(enabled = jsonText.isNotBlank(), onClick = { jsonSaveLauncher.launch(jsonName) }) { Text("另存为") }
+                            TextButton(enabled = jsonText.isNotBlank(), onClick = {
+                                runCatching {
+                                    val parsed = JSONTokener(jsonText).nextValue()
+                                    jsonText = when (parsed) {
+                                        is JSONObject -> parsed.toString(2)
+                                        is JSONArray -> parsed.toString(2)
+                                        else -> error("JSON 根节点必须是对象或数组")
+                                    }
+                                    jsonStatus = "JSON 已格式化"
+                                }.onFailure { jsonStatus = "格式化失败：${it.message ?: "JSON 格式错误"}" }
+                            }) { Text("格式化") }
                         }
                         OutlinedTextField(
                             value = jsonText,
@@ -302,6 +324,7 @@ private fun CommandGeneratorApp() {
                 })
             }
         }
+    }
     }
 }
 
@@ -370,6 +393,7 @@ private fun RemoteConnectionPanel(
 private fun CommandForm(template: CommandTemplate, context: Context, snackbar: SnackbarHostState, scope: kotlinx.coroutines.CoroutineScope, connected: Boolean, host: String, token: String, language: String, onSaved: (String) -> Unit) {
     var values by rememberSaveable(template.title) { mutableStateOf(template.example) }
     var searchQuery by rememberSaveable(template.title + "-search") { mutableStateOf("") }
+    var substatQuery by rememberSaveable(template.title + "-substat-search") { mutableStateOf("") }
     val catalog = remember(language) { ResourceCatalog(context, language) }
     val command = template.render(values)
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -393,7 +417,8 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    catalog.search(template.title, searchQuery).forEach { entry ->
+                    val results = catalog.search(template.title, searchQuery)
+                    results.forEach { entry ->
                         TextButton(
                             onClick = {
                                 val idField = if (template.title == "任务" || template.title == "成就") 1 else 0
@@ -402,6 +427,24 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text("${entry.id}  ${entry.name}", modifier = Modifier.fillMaxWidth()) }
+                    }
+                    if (searchQuery.isNotBlank() && results.isEmpty()) {
+                        Text("没有找到匹配的名称或 ID", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 4.dp))
+                    }
+                }
+                if (template.title == "给予圣遗物") {
+                    Text("主属性和副属性使用原仓库属性 ID，例如 13007", style = MaterialTheme.typography.bodySmall)
+                    Text("主属性", style = MaterialTheme.typography.labelLarge)
+                    catalog.search("给予圣遗物主属性", searchQuery).take(4).forEach { entry ->
+                        TextButton(onClick = { values = values.toMutableList().also { it[2] = entry.id } }) { Text("${entry.id}  ${entry.name}") }
+                    }
+                    OutlinedTextField(substatQuery, { substatQuery = it }, label = { Text("搜索副属性") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    catalog.search("给予圣遗物副属性", substatQuery).take(4).forEach { entry ->
+                        TextButton(onClick = {
+                            val current = values[3].trim()
+                            val updated = if (current.isBlank()) entry.id else "$current ${entry.id}"
+                            values = values.toMutableList().also { it[3] = updated }
+                        }) { Text("${entry.id}  ${entry.name}") }
                     }
                 }
             }
@@ -414,6 +457,9 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
             }
             Text("生成结果", style = MaterialTheme.typography.labelLarge)
             Text(command, fontFamily = FontFamily.Monospace, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+            if (template.title == "给予圣遗物") {
+                Text("等级范围 0-20；副属性可用空格、逗号或分号分隔。", style = MaterialTheme.typography.bodySmall)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { copy(context, command); onSaved(command); scope.launch { snackbar.showSnackbar("已复制指令") } }) {
                     Icon(Icons.Default.ContentCopy, contentDescription = null); Spacer(Modifier.padding(2.dp)); Text("复制")

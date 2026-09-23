@@ -18,6 +18,7 @@ internal class ResourceCatalog(private val context: Context, private val languag
             "给予物品" -> "upstream/en-us/Item.txt"
             "给予角色" -> "upstream/en-us/Avatar.txt"
             "给予武器" -> "upstream/en-us/Weapon.txt"
+            "给予圣遗物套装" -> "upstream/en-us/ArtifactCat.txt"
             else -> return null
         }
         val needle = key.filter(Char::isLetterOrDigit).lowercase()
@@ -58,6 +59,8 @@ internal class ResourceCatalog(private val context: Context, private val languag
             "祈愿标题" -> "upstream/$language/GachaBannerTitle.txt"
             "商店" -> "upstream/$language/ShopType.txt"
             "设置属性" -> "upstream/$language/PlayerProperty.txt"
+            "给予圣遗物主属性" -> "upstream/$language/ArtifactMainAttribution.txt"
+            "给予圣遗物副属性" -> "upstream/$language/ArtifactSubAttribution.txt"
             else -> return emptyList()
         }
         return runCatching {
