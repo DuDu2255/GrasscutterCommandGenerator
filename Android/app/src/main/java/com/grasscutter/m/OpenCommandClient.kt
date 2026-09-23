@@ -18,8 +18,14 @@ internal class OpenCommandClient(host: String) {
             readTimeout = 20_000
         }
         try {
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val responseCode = connection.responseCode
+            val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (body.isBlank()) error("服务器状态请求失败（HTTP $responseCode）")
             val json = JSONObject(body)
+            if (responseCode !in 200..299) {
+                error(json.optString("message", "服务器状态请求失败（HTTP $responseCode）"))
+            }
             val version = json.optString("version", "unknown")
             val players = json.optInt("playerCount", json.optInt("player_count", -1))
             val maxPlayers = json.optInt("maxPlayer", json.optInt("max_player", -1))
@@ -47,7 +53,10 @@ internal class OpenCommandClient(host: String) {
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
         }
         try {
-            val body = JSONObject().put("token", token).put("action", action).put("data", data).toString()
+            // Keep the data key for ping requests too; some plugin versions deserialize
+            // the request strictly even when the action has no payload.
+            val body = JSONObject().put("token", token).put("action", action)
+                .put("data", data ?: JSONObject.NULL).toString()
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val responseText = (if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -55,8 +64,9 @@ internal class OpenCommandClient(host: String) {
                 error("OpenCommand returned an empty response (HTTP ${connection.responseCode})")
             }
             val response = JSONObject(responseText)
-            if (response.optInt("retcode", connection.responseCode) != 200) {
-                error(response.optString("message", "OpenCommand request failed"))
+            val responseCode = connection.responseCode
+            if (response.optInt("retcode", responseCode) != 200) {
+                error(response.optString("message", "OpenCommand request failed (HTTP $responseCode)"))
             }
             response
         } finally {
