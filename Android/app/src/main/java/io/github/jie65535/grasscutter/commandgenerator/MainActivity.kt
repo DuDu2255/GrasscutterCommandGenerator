@@ -176,6 +176,7 @@ private fun CommandGeneratorApp() {
     var connectionStatus by remember { mutableStateOf("未连接") }
     var connected by remember { mutableStateOf(connection.token.isNotBlank()) }
     var history by remember { mutableStateOf(store.load()) }
+    var goodStatus by remember { mutableStateOf("") }
     val historyExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) runCatching {
             context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(JSONArray(history).toString(2)) }
@@ -229,7 +230,8 @@ private fun CommandGeneratorApp() {
     val goodLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching { GoodImporter.importCommands(context, uri) }
-                .onSuccess { commands -> commands.forEach { history = store.add(it) } }
+                .onSuccess { commands -> commands.forEach { history = store.add(it) }; goodStatus = "GOOD 导入成功：生成 ${commands.size} 条命令" }
+                .onFailure { goodStatus = "GOOD 导入失败：${it.message ?: "文件格式错误"}" }
         }
     }
     var selectedTitle by rememberSaveable { mutableStateOf(templates.first().title) }
@@ -292,6 +294,7 @@ private fun CommandGeneratorApp() {
                 Button(onClick = { goodLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }) {
                     Text("导入 GOOD 存档")
                 }
+                if (goodStatus.isNotBlank()) Text(goodStatus, style = MaterialTheme.typography.bodySmall)
             }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
