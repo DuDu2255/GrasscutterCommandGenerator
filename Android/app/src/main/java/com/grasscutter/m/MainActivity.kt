@@ -343,6 +343,9 @@ private fun CommandGeneratorApp() {
                 GachaBannerEditor(context, language)
             }
             item {
+                ShopEditor(context)
+            }
+            item {
                 RemoteConnectionPanel(
                     host = host,
                     onHostChange = { host = it; connected = false },
@@ -607,6 +610,82 @@ private fun parseBoolean(value: String): Boolean? = when (value.trim().lowercase
     "true" -> true
     "false" -> false
     else -> null
+}
+
+@Composable
+private fun ShopEditor(context: Context) {
+    var shopText by rememberSaveable { mutableStateOf("") }
+    var shopIndex by rememberSaveable { mutableStateOf(0) }
+    var goodsIndex by rememberSaveable { mutableStateOf(0) }
+    var status by rememberSaveable { mutableStateOf("") }
+    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            shopText = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            JSONArray(shopText)
+            shopIndex = 0
+            goodsIndex = 0
+            status = "已加载商店文件"
+        }.onFailure { status = "加载失败：${it.message ?: "JSON 格式错误"}" }
+    }
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(JSONArray(shopText).toString(2)) }
+            status = "Shop.json 已保存"
+        }.onFailure { status = "保存失败：${it.message ?: "JSON 格式错误"}" }
+    }
+    val shops = remember(shopText) { runCatching { JSONArray(shopText) }.getOrNull() }
+    val shop = shops?.optJSONObject(shopIndex)
+    val goods = shop?.optJSONArray("items")
+    val item = goods?.optJSONObject(goodsIndex)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("商店编辑器", style = MaterialTheme.typography.titleLarge)
+            Text("编辑 Shop.json 的商店、商品、物品数量和货币消耗。", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { openLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("打开 Shop.json") }
+                Button(enabled = shops != null, onClick = { saveLauncher.launch("Shop.json") }) { Text("导出") }
+                Button(onClick = {
+                    val root = shops ?: JSONArray()
+                    root.put(JSONObject().put("shopId", root.length() + 1).put("items", JSONArray()))
+                    shopText = root.toString(2); shopIndex = root.length() - 1; goodsIndex = 0; status = "已添加商店"
+                }) { Text("新增商店") }
+            }
+            if (shops != null) {
+                Text("商店列表", style = MaterialTheme.typography.labelLarge)
+                (0 until shops.length()).forEach { index ->
+                    val entry = shops.optJSONObject(index)
+                    TextButton(onClick = { shopIndex = index; goodsIndex = 0 }, modifier = Modifier.fillMaxWidth()) {
+                        Text("${if (index == shopIndex) "▶ " else ""}商店 ${entry?.optInt("shopId", 0)}")
+                    }
+                }
+                if (shop != null) {
+                    GachaField("商店 ID", shop.optInt("shopId", 0).toString(), "shopId") { _, value -> value.toIntOrNull()?.let { shop.put("shopId", it); shopText = shops.toString(2) } }
+                    Button(onClick = {
+                        val list = shop.optJSONArray("items") ?: JSONArray().also { shop.put("items", it) }
+                        list.put(JSONObject().put("goodsId", list.length() + 1).put("goodsItem", JSONObject().put("id", 223).put("count", 1)).put("buyLimit", 1).put("endTime", 1924992000))
+                        shopText = shops.toString(2); goodsIndex = list.length() - 1; status = "已添加商品"
+                    }) { Text("新增商品") }
+                    goods?.let { list -> (0 until list.length()).forEach { index ->
+                        val goodsEntry = list.optJSONObject(index)
+                        TextButton(onClick = { goodsIndex = index }, modifier = Modifier.fillMaxWidth()) {
+                            Text("${if (index == goodsIndex) "▶ " else ""}商品 ${goodsEntry?.optInt("goodsId", 0)}")
+                        }
+                    } }
+                    if (item != null) {
+                        val goodsItem = item.optJSONObject("goodsItem") ?: JSONObject().also { item.put("goodsItem", it) }
+                        GachaField("商品 ID", item.optInt("goodsId", 0).toString(), "goodsId") { _, value -> value.toIntOrNull()?.let { item.put("goodsId", it); shopText = shops.toString(2) } }
+                        GachaField("物品 ID", goodsItem.optInt("id", 0).toString(), "id") { _, value -> value.toIntOrNull()?.let { goodsItem.put("id", it); shopText = shops.toString(2) } }
+                        GachaField("物品数量", goodsItem.optInt("count", 1).toString(), "count") { _, value -> value.toIntOrNull()?.let { goodsItem.put("count", it); shopText = shops.toString(2) } }
+                        GachaField("摩拉消耗", item.optInt("scoin", 0).toString(), "scoin") { _, value -> value.toIntOrNull()?.let { item.put("scoin", it); shopText = shops.toString(2) } }
+                        GachaField("创世结晶消耗", item.optInt("mcoin", 0).toString(), "mcoin") { _, value -> value.toIntOrNull()?.let { item.put("mcoin", it); shopText = shops.toString(2) } }
+                        GachaField("原石消耗", item.optInt("hcoin", 0).toString(), "hcoin") { _, value -> value.toIntOrNull()?.let { item.put("hcoin", it); shopText = shops.toString(2) } }
+                        GachaField("购买限制", item.optInt("buyLimit", 1).toString(), "buyLimit") { _, value -> value.toIntOrNull()?.let { item.put("buyLimit", it); shopText = shops.toString(2) } }
+                    }
+                }
+            }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }
 
 private fun appendUniqueInt(objectValue: JSONObject, key: String, rawId: String) {
