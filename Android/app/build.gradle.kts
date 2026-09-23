@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.jie65535.grasscutter.commandgenerator"
+    namespace = "com.grasscutter.m"
     compileSdk = 36
 
     compileOptions {
@@ -14,11 +14,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.jie65535.grasscutter.commandgenerator"
+        applicationId = "com.grasscutter.m"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "7.0.0"
     }
 
     buildFeatures { compose = true; buildConfig = true }

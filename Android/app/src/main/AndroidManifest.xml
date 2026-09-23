@@ -4,7 +4,7 @@
         android:allowBackup="true"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:label="Grasscutter 指令生成器"
+        android:label="7.0指令生成器"
         android:icon="@drawable/ic_launcher"
         android:roundIcon="@drawable/ic_launcher"
         android:theme="@style/Theme.Grasscutter">

@@ -1,4 +1,4 @@
-package io.github.jie65535.grasscutter.commandgenerator
+package com.grasscutter.m
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -255,7 +255,7 @@ private fun CommandGeneratorApp() {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Grasscutter 指令生成器") },
+                title = { Text("7.0指令生成器") },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             )
         },

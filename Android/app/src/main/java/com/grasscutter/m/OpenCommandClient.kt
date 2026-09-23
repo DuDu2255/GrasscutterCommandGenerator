@@ -1,4 +1,4 @@
-package io.github.jie65535.grasscutter.commandgenerator
+package com.grasscutter.m
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
