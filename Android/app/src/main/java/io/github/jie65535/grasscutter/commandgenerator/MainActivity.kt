@@ -95,7 +95,14 @@ private val templates = listOf(
     },
     CommandTemplate("给予圣遗物", listOf("圣遗物 ID", "等级 (0-20)", "主属性 ID（可选）", "副属性 ID 列表（可选）", "玩家 UID"), listOf("15001", "20", "", "", "")) { v ->
         val level = v[1].toIntOrNull()?.coerceIn(0, 20) ?: 0
-        val subStats = v[3].split(',', ' ', ';').mapNotNull { it.trim().toIntOrNull() }.distinct().joinToString(" ")
+        val subStats = v[3].trim().split(Regex("[;\\s]+")).mapNotNull { token ->
+            val parts = token.split(',')
+            when {
+                parts.size == 2 && parts[0].toIntOrNull() != null && parts[1].toIntOrNull() != null -> "${parts[0]},${parts[1]}"
+                parts.size == 1 && parts[0].toIntOrNull() != null -> parts[0]
+                else -> null
+            }
+        }.distinct().joinToString(" ")
         "/give ${v[0].trim()} lv$level" + v[2].trim().takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + subStats.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + v[4].trim().takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
     CommandTemplate("生成怪物", listOf("怪物 ID", "数量", "等级"), listOf("20010101", "1", "1")) { v ->
