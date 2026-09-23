@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+wrapper_dir="${GRADLE_USER_HOME:-$HOME/.gradle}/wrapper/dists/grasscutter-8.10.2"
+gradle_home="$wrapper_dir/gradle-8.10.2"
+if [ ! -x "$gradle_home/bin/gradle" ]; then
+  mkdir -p "$wrapper_dir"
+  archive="$wrapper_dir/gradle-8.10.2-bin.zip"
+  if [ ! -f "$archive" ]; then
+    curl -fsSL https://services.gradle.org/distributions/gradle-8.10.2-bin.zip -o "$archive"
+  fi
+  unzip -q -o "$archive" -d "$wrapper_dir"
+fi
+exec "$gradle_home/bin/gradle" "$@"
