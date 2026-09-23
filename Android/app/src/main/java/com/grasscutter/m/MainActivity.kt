@@ -386,7 +386,7 @@ private fun CommandGeneratorApp() {
                 DropEditor(context, language)
             }
             if (selectedModule == "编辑器") item {
-                TextMapBrowser(context)
+                TextMapBrowser(context, language)
             }
             if (selectedModule == "设置") item {
                 HotkeyPresetEditor(context)
@@ -969,9 +969,10 @@ private fun DropEditor(context: Context, language: String) {
 }
 
 @Composable
-private fun TextMapBrowser(context: Context) {
+private fun TextMapBrowser(context: Context, language: String) {
     var text by rememberSaveable { mutableStateOf("") }
     var query by rememberSaveable { mutableStateOf("") }
+    var resourceName by rememberSaveable { mutableStateOf("Item.txt") }
     var status by rememberSaveable { mutableStateOf("") }
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runCatching {
@@ -986,7 +987,20 @@ private fun TextMapBrowser(context: Context) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("TextMap 文本浏览器", style = MaterialTheme.typography.titleLarge)
             Text("打开桌面端导出的文本资源，按 ID 或文本内容搜索。", style = MaterialTheme.typography.bodySmall)
-            Button(onClick = { openLauncher.launch(arrayOf("text/plain", "application/json", "*/*")) }) { Text("打开文本资源") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { openLauncher.launch(arrayOf("text/plain", "application/json", "*/*")) }) { Text("打开文件") }
+                Button(onClick = {
+                    runCatching {
+                        text = context.assets.open("upstream/$language/$resourceName").bufferedReader().use { it.readText() }
+                        status = "已加载内置 $resourceName"
+                    }.onFailure { status = "内置资源不可用：${it.message ?: "文件不存在"}" }
+                }) { Text("加载内置") }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf("Item.txt", "Avatar.txt", "Weapon.txt", "Quest.txt", "Achievement.txt").forEach { name ->
+                    TextButton(onClick = { resourceName = name }) { Text(name.removeSuffix(".txt")) }
+                }
+            }
             if (text.isNotBlank()) {
                 OutlinedTextField(query, { query = it }, label = { Text("搜索 ID 或文本") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 lines.forEach { line -> Text(line, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }
