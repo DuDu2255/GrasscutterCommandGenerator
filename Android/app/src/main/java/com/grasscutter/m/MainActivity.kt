@@ -771,6 +771,10 @@ private fun ShopEditor(context: Context) {
                         list.put(JSONObject().put("goodsId", list.length() + 1).put("goodsItem", JSONObject().put("id", 223).put("count", 1)).put("buyLimit", 1).put("endTime", 1924992000))
                         shopText = shops.toString(2); goodsIndex = list.length() - 1; status = "已添加商品"
                     }) { Text("新增商品") }
+                    Button(enabled = item != null, onClick = {
+                        shop.optJSONArray("items")?.remove(goodsIndex)
+                        shopText = shops.toString(2); goodsIndex = (goodsIndex - 1).coerceAtLeast(0); status = "已删除商品"
+                    }) { Text("删除商品") }
                     goods?.let { list -> (0 until list.length()).forEach { index ->
                         val goodsEntry = list.optJSONObject(index)
                         TextButton(onClick = { goodsIndex = index }, modifier = Modifier.fillMaxWidth()) {
@@ -854,6 +858,10 @@ private fun ActivityEditor(context: Context, language: String) {
                     GachaField("前置条件 ID（逗号分隔）", jsonIntArrayText(selected, "meetCondList"), "meetCondList") { key, value -> selected.put(key, parseIntArray(value)); activityText = activities.toString(2) }
                     GachaField("开始时间 ISO", selected.optString("beginTime"), "beginTime") { key, value -> selected.put(key, value); activityText = activities.toString(2) }
                     GachaField("结束时间 ISO", selected.optString("endTime"), "endTime") { key, value -> selected.put(key, value); activityText = activities.toString(2) }
+                    Button(onClick = {
+                        activities.remove(activityIndex)
+                        activityText = activities.toString(2); activityIndex = (activityIndex - 1).coerceAtLeast(0); status = "已删除活动"
+                    }) { Text("删除活动") }
                 }
             }
             if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
@@ -921,6 +929,10 @@ private fun DropEditor(context: Context, language: String) {
                         list.put(JSONObject().put("itemId", 223).put("minCount", 1).put("maxCount", 1).put("minWeight", 10000).put("maxWeight", 10000))
                         dropText = monsters.toString(2); dropIndex = list.length() - 1; status = "已添加掉落物"
                     }) { Text("新增掉落物") }
+                    Button(enabled = selected != null, onClick = {
+                        monster.optJSONArray("dropDataList")?.remove(dropIndex)
+                        dropText = monsters.toString(2); dropIndex = (dropIndex - 1).coerceAtLeast(0); status = "已删除掉落物"
+                    }) { Text("删除掉落物") }
                     drops?.let { list -> (0 until list.length()).forEach { index ->
                         val entry = list.optJSONObject(index)
                         TextButton(onClick = { dropIndex = index }, modifier = Modifier.fillMaxWidth()) {
