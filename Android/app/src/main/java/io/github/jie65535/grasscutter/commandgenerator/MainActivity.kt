@@ -297,6 +297,13 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     }
                 }
             }
+            if (template.title == "自定义") {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    catalog.customCommands().filter { values.firstOrNull().isNullOrBlank() || it.name.contains(values.first(), true) || it.id.contains(values.first(), true) }.take(8).forEach { entry ->
+                        AssistChip(onClick = { values = listOf(entry.id) }, label = { Text(entry.name) })
+                    }
+                }
+            }
             Text("生成结果", style = MaterialTheme.typography.labelLarge)
             Text(command, fontFamily = FontFamily.Monospace, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

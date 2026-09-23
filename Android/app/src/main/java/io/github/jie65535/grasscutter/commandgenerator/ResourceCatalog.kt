@@ -31,6 +31,15 @@ internal class ResourceCatalog(private val context: Context) {
         }.getOrNull()
     }
 
+    fun customCommands(): List<CatalogEntry> = cache.getOrPut("自定义") {
+        runCatching {
+            context.assets.open("upstream/zh-cn/CustomCommands.txt").bufferedReader().readLines()
+                .chunked(2).mapNotNull { pair ->
+                    if (pair.size == 2 && pair[1].startsWith('/')) CatalogEntry(pair[1], pair[0]) else null
+                }
+        }.getOrDefault(emptyList())
+    }
+
     private fun load(kind: String): List<CatalogEntry> {
         val file = when (kind) {
             "给予物品", "给予圣遗物", "生成物品" -> "upstream/zh-cn/Item.txt"
