@@ -496,10 +496,30 @@ private fun GachaBannerEditor(context: Context) {
                     GachaField("消耗道具 ID", selected.optInt("costItemId", selected.optInt("costItemId10", 223)).toString(), "costItemId") { key, value ->
                         value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) }
                     }
+                    GachaField("十连消耗道具 ID", selected.optInt("costItemId10", selected.optInt("costItemId", 223)).toString(), "costItemId10") { key, value ->
+                        value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) }
+                    }
+                    GachaField("单抽消耗数量", selected.optInt("coseItemAmount", 1).toString(), "coseItemAmount") { key, value -> value.toIntOrNull()?.coerceAtLeast(1)?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("十连消耗数量", selected.optInt("coseItemAmount10", 10).toString(), "coseItemAmount10") { key, value -> value.toIntOrNull()?.coerceAtLeast(1)?.let { selected.put(key, it); bannersText = array.toString(2) } }
                     GachaField("开始时间 Unix", selected.optInt("beginTime", 0).toString(), "beginTime") { key, value -> value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) } }
                     GachaField("结束时间 Unix", selected.optInt("endTime", 1924992000).toString(), "endTime") { key, value -> value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("抽卡次数限制", selected.optInt("gachaTimesLimit", Int.MAX_VALUE).toString(), "gachaTimesLimit") { key, value -> value.toIntOrNull()?.coerceAtLeast(0)?.let { selected.put(key, it); bannersText = array.toString(2) } }
                     GachaField("UP 四星 ID（逗号分隔）", jsonIntArrayText(selected, "rateUpItems4"), "rateUpItems4") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
                     GachaField("UP 五星 ID（逗号分隔）", jsonIntArrayText(selected, "rateUpItems5"), "rateUpItems5") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
+                    GachaField("普通三星池 ID", jsonIntArrayText(selected, "fallbackItems3"), "fallbackItems3") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
+                    GachaField("普通四星角色池 ID", jsonIntArrayText(selected, "fallbackItems4Pool1"), "fallbackItems4Pool1") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
+                    GachaField("普通四星武器池 ID", jsonIntArrayText(selected, "fallbackItems4Pool2"), "fallbackItems4Pool2") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
+                    GachaField("普通五星角色池 ID", jsonIntArrayText(selected, "fallbackItems5Pool1"), "fallbackItems5Pool1") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
+                    GachaField("普通五星武器池 ID", jsonIntArrayText(selected, "fallbackItems5Pool2"), "fallbackItems5Pool2") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
+                    GachaField("四星权重 JSON", jsonMatrixText(selected, "weights4"), "weights4") { key, value -> parseMatrix(value)?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("五星权重 JSON", jsonMatrixText(selected, "weights5"), "weights5") { key, value -> parseMatrix(value)?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("四星奖池平衡权重 JSON", jsonMatrixText(selected, "poolBalanceWeights4"), "poolBalanceWeights4") { key, value -> parseMatrix(value)?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("五星奖池平衡权重 JSON", jsonMatrixText(selected, "poolBalanceWeights5"), "poolBalanceWeights5") { key, value -> parseMatrix(value)?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("四星 UP 概率", selected.optInt("eventChance4", 50).toString(), "eventChance4") { key, value -> value.toIntOrNull()?.coerceIn(0, 100)?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("五星 UP 概率", selected.optInt("eventChance5", 50).toString(), "eventChance5") { key, value -> value.toIntOrNull()?.coerceIn(0, 100)?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("自动从普通池移除 UP（true/false）", selected.optBoolean("autoStripRateUpFromFallback", true).toString(), "autoStripRateUpFromFallback") { key, value -> parseBoolean(value)?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("移除命座满级角色（true/false）", selected.optBoolean("removeC6FromPool", false).toString(), "removeC6FromPool") { key, value -> parseBoolean(value)?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("卡池类型（STANDARD/EVENT/WEAPON）", selected.optString("bannerType", "EVENT"), "bannerType") { key, value -> selected.put(key, value.uppercase()); bannersText = array.toString(2) }
                 }
             }
             if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
@@ -518,6 +538,8 @@ private fun jsonIntArrayText(objectValue: JSONObject, key: String): String {
     return (0 until values.length()).map { values.optInt(it) }.joinToString(",")
 }
 
+private fun jsonMatrixText(objectValue: JSONObject, key: String): String = objectValue.optJSONArray(key)?.toString() ?: "[]"
+
 private fun parseIntArray(value: String): JSONArray {
     val result = JSONArray()
     value.split(Regex("[,;\\s]+"))
@@ -525,6 +547,18 @@ private fun parseIntArray(value: String): JSONArray {
         .distinct()
         .forEach { result.put(it) }
     return result
+}
+
+private fun parseMatrix(value: String): JSONArray? = runCatching {
+    val parsed = JSONTokener(value).nextValue()
+    require(parsed is JSONArray)
+    parsed
+}.getOrNull()
+
+private fun parseBoolean(value: String): Boolean? = when (value.trim().lowercase()) {
+    "true" -> true
+    "false" -> false
+    else -> null
 }
 
 @Composable
