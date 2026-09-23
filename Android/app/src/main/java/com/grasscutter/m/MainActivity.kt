@@ -346,6 +346,9 @@ private fun CommandGeneratorApp() {
                 ShopEditor(context)
             }
             item {
+                ActivityEditor(context, language)
+            }
+            item {
                 RemoteConnectionPanel(
                     host = host,
                     onHostChange = { host = it; connected = false },
@@ -681,6 +684,73 @@ private fun ShopEditor(context: Context) {
                         GachaField("原石消耗", item.optInt("hcoin", 0).toString(), "hcoin") { _, value -> value.toIntOrNull()?.let { item.put("hcoin", it); shopText = shops.toString(2) } }
                         GachaField("购买限制", item.optInt("buyLimit", 1).toString(), "buyLimit") { _, value -> value.toIntOrNull()?.let { item.put("buyLimit", it); shopText = shops.toString(2) } }
                     }
+                }
+            }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun ActivityEditor(context: Context, language: String) {
+    var activityText by rememberSaveable { mutableStateOf("") }
+    var activityIndex by rememberSaveable { mutableStateOf(0) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var status by rememberSaveable { mutableStateOf("") }
+    val catalog = remember(language) { ResourceCatalog(context, language) }
+    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            activityText = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            JSONArray(activityText)
+            activityIndex = 0
+            status = "已加载活动配置"
+        }.onFailure { status = "加载失败：${it.message ?: "JSON 格式错误"}" }
+    }
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(JSONArray(activityText).toString(2)) }
+            status = "ActivityConfig.json 已保存"
+        }.onFailure { status = "保存失败：${it.message ?: "JSON 格式错误"}" }
+    }
+    val activities = remember(activityText) { runCatching { JSONArray(activityText) }.getOrNull() }
+    val selected = activities?.optJSONObject(activityIndex)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("活动配置编辑器", style = MaterialTheme.typography.titleLarge)
+            Text("编辑 ActivityConfig.json 的活动时间、类型、调度和前置条件。", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { openLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("打开活动配置") }
+                Button(enabled = activities != null, onClick = { saveLauncher.launch("ActivityConfig.json") }) { Text("导出") }
+                Button(onClick = {
+                    val root = activities ?: JSONArray()
+                    root.put(JSONObject().put("activityId", 1).put("activityType", 1).put("scheduleId", 1).put("meetCondList", JSONArray()).put("beginTime", "2020-01-01T00:00:00").put("endTime", "2099-12-31T23:59:59"))
+                    activityText = root.toString(2); activityIndex = root.length() - 1; status = "已添加活动"
+                }) { Text("新增活动") }
+            }
+            if (activities != null) {
+                OutlinedTextField(query, { query = it }, label = { Text("搜索活动名称或 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (query.isNotBlank()) {
+                    catalog.search("活动", query).take(8).forEach { entry ->
+                        TextButton(onClick = {
+                            val root = activities
+                            val index = (0 until root.length()).indexOfFirst { root.optJSONObject(it)?.optInt("activityId", -1).toString() == entry.id }
+                            if (index >= 0) activityIndex = index
+                        }, modifier = Modifier.fillMaxWidth()) { Text("${entry.id}  ${entry.name}") }
+                    }
+                }
+                (0 until activities.length()).take(30).forEach { index ->
+                    val entry = activities.optJSONObject(index)
+                    TextButton(onClick = { activityIndex = index }, modifier = Modifier.fillMaxWidth()) {
+                        Text("${if (index == activityIndex) "▶ " else ""}活动 ${entry?.optInt("activityId", 0)}  schedule=${entry?.optInt("scheduleId", 0)}")
+                    }
+                }
+                if (selected != null) {
+                    GachaField("活动 ID", selected.optInt("activityId", 0).toString(), "activityId") { _, value -> value.toIntOrNull()?.let { selected.put("activityId", it); activityText = activities.toString(2) } }
+                    GachaField("活动类型", selected.optInt("activityType", 0).toString(), "activityType") { _, value -> value.toIntOrNull()?.let { selected.put("activityType", it); activityText = activities.toString(2) } }
+                    GachaField("调度 ID", selected.optInt("scheduleId", 0).toString(), "scheduleId") { _, value -> value.toIntOrNull()?.let { selected.put("scheduleId", it); activityText = activities.toString(2) } }
+                    GachaField("前置条件 ID（逗号分隔）", jsonIntArrayText(selected, "meetCondList"), "meetCondList") { key, value -> selected.put(key, parseIntArray(value)); activityText = activities.toString(2) }
+                    GachaField("开始时间 ISO", selected.optString("beginTime"), "beginTime") { key, value -> selected.put(key, value); activityText = activities.toString(2) }
+                    GachaField("结束时间 ISO", selected.optString("endTime"), "endTime") { key, value -> selected.put(key, value); activityText = activities.toString(2) }
                 }
             }
             if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
