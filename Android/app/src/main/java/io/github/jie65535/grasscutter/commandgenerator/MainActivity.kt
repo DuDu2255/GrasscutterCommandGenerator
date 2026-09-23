@@ -132,7 +132,8 @@ private val templates = listOf(
     CommandTemplate("封禁玩家", listOf("玩家 UID", "Unix 解禁时间", "原因（可选）"), listOf("", "0", "")) { v -> "/ban @${v[0]} ${v[1]} ${v[2]}".trim() },
     CommandTemplate("解禁玩家", listOf("玩家 UID"), listOf("")) { v -> "/unban @${v[0]}" },
     CommandTemplate("发送邮件", listOf("收件人 UID 或 all", "标题", "内容", "发件人", "附件：物品ID 数量 等级"), listOf("all", "标题", "内容", "Grasscutter", "")) { v ->
-        "/sendMail ${v[0]} | /sendMail ${v[1]} | /sendMail ${v[2].replace("\n", "\\n")} | /sendMail ${v[3]}" + v[4].takeIf { it.isNotBlank() }?.let { " | /sendMail $it" }.orEmpty() + " | /sendMail finish"
+        val attachments = v[4].lines().map { it.trim() }.filter { it.isNotBlank() }.joinToString(" | ") { "/sendMail $it" }
+        "/sendMail ${v[0]} | /sendMail ${v[1]} | /sendMail ${v[2].replace("\n", "\\n")} | /sendMail ${v[3]}" + attachments.takeIf { it.isNotBlank() }?.let { " | $it" }.orEmpty() + " | /sendMail finish"
     },
     CommandTemplate("批量命令", listOf("每行一条命令"), listOf("/pos\n/list uid")) { v ->
         v[0].lines().map { it.trim() }.filter { it.isNotBlank() }.joinToString(" | ")
@@ -467,8 +468,8 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     value = values[index],
                     onValueChange = { input -> values = values.toMutableList().also { it[index] = input } },
                     label = { Text(label) },
-                    singleLine = template.title != "批量命令",
-                    minLines = if (template.title == "批量命令") 4 else 1,
+                    singleLine = template.title != "批量命令" && !(template.title == "发送邮件" && index == 4),
+                    minLines = if (template.title == "批量命令" || (template.title == "发送邮件" && index == 4)) 4 else 1,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
