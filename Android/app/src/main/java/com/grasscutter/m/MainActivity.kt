@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.provider.OpenableColumns
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
@@ -306,6 +307,7 @@ private fun CommandGeneratorApp() {
                         TextButton(onClick = { settingsImportLauncher.launch(arrayOf("application/json", "text/plain")) }) { Text("导入设置") }
                         TextButton(onClick = { settingsExportLauncher.launch("grasscutter-settings.json") }) { Text("导出设置") }
                     }
+                    AboutPanel(context)
                 }
             }
             item {
@@ -435,6 +437,24 @@ private fun CommandGeneratorApp() {
             }
         }
     }
+    }
+}
+
+@Composable
+private fun AboutPanel(context: Context) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "收起关于" else "关于应用") }
+    if (expanded) {
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("7.0 指令生成器", style = MaterialTheme.typography.titleMedium)
+                Text("版本 ${BuildConfig.VERSION_NAME} · 包名 com.grasscutter.m", style = MaterialTheme.typography.bodySmall)
+                Text("基于 GrasscutterTools 的 Android 适配，遵循 AGPL-3.0-or-later。", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/DuDu2255/GrasscutterCommandGenerator")))
+                }) { Text("打开项目源码") }
+            }
+        }
     }
 }
 
