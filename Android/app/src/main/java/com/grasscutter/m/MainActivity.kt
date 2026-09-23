@@ -340,6 +340,9 @@ private fun CommandGeneratorApp() {
                 }
             }
             item {
+                GachaBannerEditor(context)
+            }
+            item {
                 RemoteConnectionPanel(
                     host = host,
                     onHostChange = { host = it; connected = false },
@@ -402,6 +405,126 @@ private fun CommandGeneratorApp() {
         }
     }
     }
+}
+
+@Composable
+private fun GachaBannerEditor(context: Context) {
+    var bannersText by rememberSaveable { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
+    var selectedIndex by rememberSaveable { mutableStateOf(0) }
+    var status by rememberSaveable { mutableStateOf("") }
+    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            bannersText = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+            JSONArray(bannersText)
+            selectedIndex = 0
+            status = "已加载卡池文件"
+        }.onFailure { status = "加载失败：${it.message ?: "JSON 格式错误"}" }
+    }
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching {
+            val formatted = JSONArray(bannersText).toString(2)
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(formatted) }
+            status = "Banners.json 已保存"
+        }.onFailure { status = "保存失败：${it.message ?: "JSON 格式错误"}" }
+    }
+    val array = remember(bannersText) { runCatching { JSONArray(bannersText) }.getOrNull() }
+    val matchingIndexes = remember(array, query) {
+        if (array == null) emptyList() else (0 until array.length()).filter { index ->
+            val banner = array.optJSONObject(index) ?: return@filter false
+            query.isBlank() || banner.optString("comment").contains(query, true) ||
+                banner.optInt("gachaType", -1).toString().contains(query, true) ||
+                banner.optInt("scheduleId", -1).toString().contains(query, true)
+        }.take(30)
+    }
+    val selected = array?.optJSONObject(selectedIndex)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("卡池编辑器", style = MaterialTheme.typography.titleLarge)
+            Text("编辑 Grasscutter 的 Banners.json，保留原始字段并支持常用卡池参数。", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    runCatching {
+                        bannersText = context.assets.open("upstream/Banners.json").bufferedReader().use { it.readText() }
+                        selectedIndex = 0
+                        status = "已加载内置 Banners.json"
+                    }.onFailure { status = "内置资源不可用：${it.message}" }
+                }) { Text("加载内置") }
+                Button(onClick = { openLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("打开文件") }
+                Button(enabled = array != null, onClick = { saveLauncher.launch("Banners.json") }) { Text("导出") }
+            }
+            if (array != null) {
+                OutlinedTextField(query, { query = it }, label = { Text("搜索备注、卡池类型或计划 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = {
+                        val next = JSONObject().put("comment", "新卡池").put("gachaType", 301).put("scheduleId", 1)
+                            .put("prefabPath", "GachaShowPanel_A007").put("titlePath", "UI_GACHA_SHOW_PANEL_A007_TITLE")
+                            .put("costItemId", 223).put("endTime", 1924992000).put("sortId", 1)
+                            .put("rateUpItems4", JSONArray()).put("rateUpItems5", JSONArray()).put("bannerType", "EVENT")
+                        array.put(next)
+                        bannersText = array.toString(2)
+                        selectedIndex = array.length() - 1
+                        status = "已添加新卡池"
+                    }) { Text("新增卡池") }
+                    Button(enabled = selected != null, onClick = {
+                        array.remove(selectedIndex)
+                        bannersText = array.toString(2)
+                        selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                        status = "已删除卡池"
+                    }) { Text("删除选中") }
+                }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    matchingIndexes.forEach { index ->
+                        val banner = array.optJSONObject(index)
+                        TextButton(onClick = { selectedIndex = index }, modifier = Modifier.fillMaxWidth()) {
+                            Text("${if (index == selectedIndex) "▶ " else ""}${banner?.optString("comment", "未命名") ?: "未命名"}  type=${banner?.optInt("gachaType", 0)} schedule=${banner?.optInt("scheduleId", 0)}")
+                        }
+                    }
+                }
+                if (selected != null) {
+                    GachaField("备注", selected.optString("comment"), "comment") { key, value ->
+                        selected.put(key, value); bannersText = array.toString(2)
+                    }
+                    GachaField("卡池类型 ID", selected.optInt("gachaType", 0).toString(), "gachaType") { key, value ->
+                        value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) }
+                    }
+                    GachaField("计划 ID", selected.optInt("scheduleId", 0).toString(), "scheduleId") { key, value ->
+                        value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) }
+                    }
+                    GachaField("Prefab 路径", selected.optString("prefabPath"), "prefabPath") { key, value -> selected.put(key, value); bannersText = array.toString(2) }
+                    GachaField("标题路径", selected.optString("titlePath"), "titlePath") { key, value -> selected.put(key, value); bannersText = array.toString(2) }
+                    GachaField("消耗道具 ID", selected.optInt("costItemId", selected.optInt("costItemId10", 223)).toString(), "costItemId") { key, value ->
+                        value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) }
+                    }
+                    GachaField("开始时间 Unix", selected.optInt("beginTime", 0).toString(), "beginTime") { key, value -> value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("结束时间 Unix", selected.optInt("endTime", 1924992000).toString(), "endTime") { key, value -> value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) } }
+                    GachaField("UP 四星 ID（逗号分隔）", jsonIntArrayText(selected, "rateUpItems4"), "rateUpItems4") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
+                    GachaField("UP 五星 ID（逗号分隔）", jsonIntArrayText(selected, "rateUpItems5"), "rateUpItems5") { key, value -> selected.put(key, parseIntArray(value)); bannersText = array.toString(2) }
+                }
+            }
+            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun GachaField(label: String, value: String, key: String, onChange: (String, String) -> Unit) {
+    var current by remember(value, key) { mutableStateOf(value) }
+    OutlinedTextField(current, { current = it; onChange(key, it) }, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+}
+
+private fun jsonIntArrayText(objectValue: JSONObject, key: String): String {
+    val values = objectValue.optJSONArray(key) ?: return ""
+    return (0 until values.length()).map { values.optInt(it) }.joinToString(",")
+}
+
+private fun parseIntArray(value: String): JSONArray {
+    val result = JSONArray()
+    value.split(Regex("[,;\\s]+"))
+        .mapNotNull { it.toIntOrNull() }
+        .distinct()
+        .forEach { result.put(it) }
+    return result
 }
 
 @Composable

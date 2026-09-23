@@ -29,7 +29,7 @@ val upstreamResources = rootProject.file("../Source/GrasscutterTools/Resources")
 val syncedResources = layout.buildDirectory.dir("generated/upstreamAssets")
 val syncUpstreamResources by tasks.registering(Sync::class) {
     from(upstreamResources) {
-        include("zh-cn/*.txt", "zh-tw/*.txt", "en-us/*.txt", "ru-ru/*.txt")
+        include("zh-cn/*.txt", "zh-tw/*.txt", "en-us/*.txt", "ru-ru/*.txt", "Banners.json")
         into("upstream")
     }
     into(syncedResources)
