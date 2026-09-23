@@ -750,6 +750,7 @@ private fun ShopEditor(context: Context) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { openLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("打开 Shop.json") }
                 Button(enabled = shops != null, onClick = { saveLauncher.launch("Shop.json") }) { Text("导出") }
+                Button(enabled = shops != null, onClick = { status = validateShops(shops!!) }) { Text("校验") }
                 Button(onClick = {
                     val root = shops ?: JSONArray()
                     root.put(JSONObject().put("shopId", root.length() + 1).put("items", JSONArray()))
@@ -906,6 +907,7 @@ private fun DropEditor(context: Context, language: String) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { openLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) { Text("打开 Drop.json") }
                 Button(enabled = monsters != null, onClick = { saveLauncher.launch("Drop.json") }) { Text("导出") }
+                Button(enabled = monsters != null, onClick = { status = validateDropTables(monsters!!) }) { Text("校验") }
                 Button(onClick = {
                     val root = monsters ?: JSONArray()
                     root.put(JSONObject().put("monsterId", 20010101).put("dropDataList", JSONArray()))
@@ -1077,6 +1079,54 @@ private fun appendUniqueInt(objectValue: JSONObject, key: String, rawId: String)
     val current = objectValue.optJSONArray(key) ?: JSONArray()
     if ((0 until current.length()).none { current.optInt(it) == id }) current.put(id)
     objectValue.put(key, current)
+}
+
+private fun validateShops(shops: JSONArray): String {
+    val errors = mutableListOf<String>()
+    for (index in 0 until shops.length()) {
+        val shop = shops.optJSONObject(index)
+        if (shop == null) {
+            errors += "第 ${index + 1} 个商店不是对象"
+            continue
+        }
+        if (shop.optInt("shopId", 0) <= 0) errors += "第 ${index + 1} 个商店 ID 无效"
+        val items = shop.optJSONArray("items")
+        if (items == null) errors += "商店 ${shop.optInt("shopId", 0)} 缺少 items"
+        else for (itemIndex in 0 until items.length()) {
+            val item = items.optJSONObject(itemIndex)
+            if (item == null || item.optInt("goodsId", 0) <= 0) errors += "商店 ${shop.optInt("shopId", 0)} 商品 ${itemIndex + 1} ID 无效"
+            val goodsItem = item?.optJSONObject("goodsItem")
+            if (goodsItem == null || goodsItem.optInt("id", 0) <= 0 || goodsItem.optInt("count", 0) <= 0) errors += "商店 ${shop.optInt("shopId", 0)} 商品 ${itemIndex + 1} 物品参数无效"
+        }
+    }
+    return if (errors.isEmpty()) "商店校验通过" else "发现 ${errors.size} 个商店问题：\n${errors.take(8).joinToString("\n")}"
+}
+
+private fun validateDropTables(monsters: JSONArray): String {
+    val errors = mutableListOf<String>()
+    for (index in 0 until monsters.length()) {
+        val monster = monsters.optJSONObject(index)
+        if (monster == null || monster.optInt("monsterId", 0) <= 0) {
+            errors += "第 ${index + 1} 个怪物 ID 无效"
+            continue
+        }
+        val drops = monster.optJSONArray("dropDataList")
+        if (drops == null) {
+            errors += "怪物 ${monster.optInt("monsterId", 0)} 缺少 dropDataList"
+            continue
+        }
+        for (dropIndex in 0 until drops.length()) {
+            val drop = drops.optJSONObject(dropIndex)
+            val minCount = drop?.optInt("minCount", -1) ?: -1
+            val maxCount = drop?.optInt("maxCount", -1) ?: -1
+            val minWeight = drop?.optInt("minWeight", -1) ?: -1
+            val maxWeight = drop?.optInt("maxWeight", -1) ?: -1
+            if (drop == null || drop.optInt("itemId", 0) <= 0 || minCount < 0 || maxCount < minCount || minWeight !in 0..10000 || maxWeight !in minWeight..10000) {
+                errors += "怪物 ${monster.optInt("monsterId", 0)} 掉落 ${dropIndex + 1} 参数无效"
+            }
+        }
+    }
+    return if (errors.isEmpty()) "掉落表校验通过" else "发现 ${errors.size} 个掉落问题：\n${errors.take(8).joinToString("\n")}"
 }
 
 private fun validateGachaBanners(banners: JSONArray): String {
