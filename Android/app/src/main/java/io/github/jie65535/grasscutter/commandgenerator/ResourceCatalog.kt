@@ -4,7 +4,7 @@ import android.content.Context
 
 internal data class CatalogEntry(val id: String, val name: String)
 
-internal class ResourceCatalog(private val context: Context) {
+internal class ResourceCatalog(private val context: Context, private val language: String = "zh-cn") {
     private val cache = mutableMapOf<String, List<CatalogEntry>>()
 
     fun search(kind: String, query: String): List<CatalogEntry> {
@@ -31,9 +31,9 @@ internal class ResourceCatalog(private val context: Context) {
         }.getOrNull()
     }
 
-    fun customCommands(): List<CatalogEntry> = cache.getOrPut("自定义") {
+    fun customCommands(): List<CatalogEntry> = cache.getOrPut("自定义:$language") {
         runCatching {
-            context.assets.open("upstream/zh-cn/CustomCommands.txt").bufferedReader().readLines()
+            context.assets.open("upstream/$language/CustomCommands.txt").bufferedReader().readLines()
                 .chunked(2).mapNotNull { pair ->
                     if (pair.size == 2 && pair[1].startsWith('/')) CatalogEntry(pair[1], pair[0]) else null
                 }
@@ -42,21 +42,22 @@ internal class ResourceCatalog(private val context: Context) {
 
     private fun load(kind: String): List<CatalogEntry> {
         val file = when (kind) {
-            "给予物品", "生成物品" -> "upstream/zh-cn/Item.txt"
-            "给予圣遗物" -> "upstream/zh-cn/Artifact.txt"
-            "给予角色" -> "upstream/zh-cn/Avatar.txt"
-            "给予武器" -> "upstream/zh-cn/Weapon.txt"
-            "生成怪物" -> "upstream/zh-cn/Monsters.txt"
-            "场景" -> "upstream/zh-cn/Scene.txt"
-            "地城" -> "upstream/zh-cn/Dungeon.txt"
-            "过场动画" -> "upstream/zh-cn/Cutscene.txt"
-            "天气" -> "upstream/zh-cn/Weather.txt"
-            "任务" -> "upstream/zh-cn/Quest.txt"
-            "成就" -> "upstream/zh-cn/Achievement.txt"
-            "活动" -> "upstream/zh-cn/Activity.txt"
-            "祈愿预设" -> "upstream/zh-cn/GachaBannerPrefab.txt"
-            "祈愿标题" -> "upstream/zh-cn/GachaBannerTitle.txt"
-            "商店" -> "upstream/zh-cn/ShopType.txt"
+            "给予物品", "生成物品" -> "upstream/$language/Item.txt"
+            "给予圣遗物" -> "upstream/$language/Artifact.txt"
+            "给予角色" -> "upstream/$language/Avatar.txt"
+            "给予武器" -> "upstream/$language/Weapon.txt"
+            "生成怪物" -> "upstream/$language/Monsters.txt"
+            "场景" -> "upstream/$language/Scene.txt"
+            "地城" -> "upstream/$language/Dungeon.txt"
+            "过场动画" -> "upstream/$language/Cutscene.txt"
+            "天气" -> "upstream/$language/Weather.txt"
+            "任务" -> "upstream/$language/Quest.txt"
+            "成就" -> "upstream/$language/Achievement.txt"
+            "活动" -> "upstream/$language/Activity.txt"
+            "祈愿预设" -> "upstream/$language/GachaBannerPrefab.txt"
+            "祈愿标题" -> "upstream/$language/GachaBannerTitle.txt"
+            "商店" -> "upstream/$language/ShopType.txt"
+            "设置属性" -> "upstream/$language/PlayerProperty.txt"
             else -> return emptyList()
         }
         return runCatching {

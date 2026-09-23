@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.provider.OpenableColumns
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
@@ -41,7 +42,10 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,6 +60,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONTokener
+import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -107,6 +113,8 @@ private val templates = listOf(
     CommandTemplate("世界等级", listOf("世界等级"), listOf("8")) { v -> "/prop worldlevel ${v[0]}" },
     CommandTemplate("深境螺旋等级", listOf("等级"), listOf("12")) { v -> "/prop towerlevel ${v[0]}" },
     CommandTemplate("开放状态", listOf("操作 SetOpenState/UnsetOpenState", "状态 ID"), listOf("SetOpenState", "47")) { v -> "/prop ${v[0]} ${v[1]}" },
+    CommandTemplate("锁定天气", listOf("on/off"), listOf("on")) { v -> "/prop is_weather_locked ${v[0]}" },
+    CommandTemplate("锁定游戏时间", listOf("on/off"), listOf("on")) { v -> "/prop is_game_time_locked ${v[0]}" },
     CommandTemplate("解锁全部", emptyList(), emptyList()) { _ -> "/unlockall" },
     CommandTemplate("切换元素", listOf("元素 fire/water/wind/electric/ice/rock/grass"), listOf("fire")) { v -> "/se ${v[0]}" },
     CommandTemplate("天赋等级", listOf("天赋类型", "等级"), listOf("all", "10")) { v -> "/talent ${v[0]} ${v[1]}" },
@@ -123,11 +131,25 @@ private val templates = listOf(
     CommandTemplate("自定义", listOf("完整指令"), listOf("/help")) { v -> v[0] },
 )
 
+private val templateGroups = listOf("全部", "物品角色", "世界场景", "任务成就", "玩家管理", "高级操作", "自定义")
+
+private fun templateGroup(title: String): String = when (title) {
+    "给予物品", "给予角色", "给予武器", "给予圣遗物", "生成物品", "生成怪物" -> "物品角色"
+    "传送", "场景", "地城", "过场动画", "天气", "设置属性", "世界等级", "深境螺旋等级", "开放状态", "解锁全部" -> "世界场景"
+    "任务", "成就", "成就全部", "成就进度" -> "任务成就"
+    "权限管理", "账号管理", "封禁玩家", "解禁玩家", "发送邮件" -> "玩家管理"
+    "切换元素", "天赋等级", "设置命座", "重置命座", "场景标签" -> "高级操作"
+    "自定义" -> "自定义"
+    else -> "全部"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CommandGeneratorApp() {
     val context = LocalContext.current
     val store = remember { HistoryStore(context) }
+    val appPreferences = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
+    var language by remember { mutableStateOf(appPreferences.getString("language", "zh-cn") ?: "zh-cn") }
     val connection = remember { OpenCommandSettings(context) }
     var host by remember { mutableStateOf(connection.host) }
     var token by remember { mutableStateOf(connection.token) }
@@ -138,14 +160,23 @@ private fun CommandGeneratorApp() {
     var history by remember { mutableStateOf(store.load()) }
     var jsonName by remember { mutableStateOf("config.json") }
     var jsonText by remember { mutableStateOf("") }
+    var jsonStatus by remember { mutableStateOf("") }
     val jsonSaveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(jsonText) } }
+        if (uri != null) runCatching {
+            JSONTokener(jsonText).nextValue()
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(jsonText) }
+            jsonStatus = "JSON 已保存"
+        }.onFailure { jsonStatus = "保存失败：${it.message ?: "JSON 格式错误"}" }
     }
     val jsonOpenLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) runCatching {
             jsonText = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
-            jsonName = context.contentResolver.getType(uri)?.substringAfterLast('/')?.plus(".json") ?: "config.json"
-        }
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) jsonName = cursor.getString(0)
+            }
+            JSONTokener(jsonText).nextValue()
+            jsonStatus = "已打开并通过 JSON 校验"
+        }.onFailure { jsonStatus = "打开失败：${it.message ?: "JSON 格式错误"}" }
     }
     val goodLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -154,9 +185,14 @@ private fun CommandGeneratorApp() {
         }
     }
     var selectedTitle by rememberSaveable { mutableStateOf(templates.first().title) }
+    var selectedGroup by rememberSaveable { mutableStateOf("全部") }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val selected = templates.first { it.title == selectedTitle }
+    val visibleTemplates = templates.filter { selectedGroup == "全部" || templateGroup(it.title) == selectedGroup }
+    val selected = visibleTemplates.firstOrNull { it.title == selectedTitle } ?: visibleTemplates.first()
+    LaunchedEffect(selectedGroup) {
+        if (selectedTitle !in visibleTemplates.map { it.title }) selectedTitle = selected.title
+    }
 
     Scaffold(
         topBar = {
@@ -172,6 +208,22 @@ private fun CommandGeneratorApp() {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Text("资源语言：$language", modifier = Modifier.padding(top = 8.dp))
+                    TextButton(onClick = {
+                        language = listOf("zh-cn", "zh-tw", "en-us", "ru-ru").let { it[(it.indexOf(language) + 1) % it.size] }
+                        appPreferences.edit().putString("language", language).apply()
+                    }) { Text("切换语言") }
+                }
+            }
+            item {
+                ScrollableTabRow(selectedTabIndex = templateGroups.indexOf(selectedGroup).coerceAtLeast(0)) {
+                    templateGroups.forEach { group ->
+                        Tab(selected = selectedGroup == group, onClick = { selectedGroup = group }, text = { Text(group) })
+                    }
+                }
+            }
             item {
                 Button(onClick = { goodLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }) {
                     Text("导入 GOOD 存档")
@@ -193,6 +245,7 @@ private fun CommandGeneratorApp() {
                             minLines = 5,
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        if (jsonStatus.isNotBlank()) Text(jsonStatus, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -215,11 +268,17 @@ private fun CommandGeneratorApp() {
                         connection.save(host.trim(), newToken.trim(), playerId)
                     },
                     onToken = { token = it },
+                    onDisconnected = {
+                        token = ""
+                        connected = false
+                        connection.save(host.trim(), "", playerId)
+                        connectionStatus = "已断开"
+                    },
                 )
             }
             item {
                 Text("指令类型", style = MaterialTheme.typography.titleMedium)
-                templates.chunked(4).forEach { row ->
+                visibleTemplates.chunked(4).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
                         row.forEach { template ->
                             AssistChip(onClick = { selectedTitle = template.title }, label = { Text(template.title) })
@@ -227,13 +286,18 @@ private fun CommandGeneratorApp() {
                     }
                 }
             }
-            item(key = selected.title) { CommandForm(selected, context, snackbar, scope, connected, host, token, onSaved = { command ->
+            item(key = selected.title + language) { CommandForm(selected, context, snackbar, scope, connected, host, token, language, onSaved = { command ->
                 history = store.add(command)
             }) }
             item { HorizontalDivider() }
-            item { Text("最近生成", style = MaterialTheme.typography.titleMedium) }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("最近生成", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+                    TextButton(onClick = { history = store.clear() }) { Text("清空历史") }
+                }
+            }
             items(history, key = { it }) { command ->
-                HistoryRow(command, onCopy = { copy(context, command); scope.launch { snackbar.showSnackbar("已复制指令") } }, onDelete = {
+                HistoryRow(command, connected, host, token, scope, snackbar, onCopy = { copy(context, command); scope.launch { snackbar.showSnackbar("已复制指令") } }, onDelete = {
                     history = store.remove(command)
                 })
             }
@@ -257,6 +321,7 @@ private fun RemoteConnectionPanel(
     onStatus: (String) -> Unit,
     onConnected: (String) -> Unit,
     onToken: (String) -> Unit,
+    onDisconnected: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -293,6 +358,7 @@ private fun RemoteConnectionPanel(
                             .onFailure { onStatus("验证失败：${it.message ?: "未知错误"}") }
                     }
                 }) { Text("验证并连接") }
+                TextButton(enabled = connected, onClick = onDisconnected) { Text("断开连接") }
                 Text(if (connected) "已连接" else status, color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
             }
             if (status.isNotBlank() && !connected) Text(status, style = MaterialTheme.typography.bodySmall)
@@ -301,10 +367,10 @@ private fun RemoteConnectionPanel(
 }
 
 @Composable
-private fun CommandForm(template: CommandTemplate, context: Context, snackbar: SnackbarHostState, scope: kotlinx.coroutines.CoroutineScope, connected: Boolean, host: String, token: String, onSaved: (String) -> Unit) {
+private fun CommandForm(template: CommandTemplate, context: Context, snackbar: SnackbarHostState, scope: kotlinx.coroutines.CoroutineScope, connected: Boolean, host: String, token: String, language: String, onSaved: (String) -> Unit) {
     var values by rememberSaveable(template.title) { mutableStateOf(template.example) }
     var searchQuery by rememberSaveable(template.title + "-search") { mutableStateOf("") }
-    val catalog = remember { ResourceCatalog(context) }
+    val catalog = remember(language) { ResourceCatalog(context, language) }
     val command = template.render(values)
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -318,7 +384,7 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (template.title in setOf("给予物品", "给予角色", "给予武器", "给予圣遗物", "生成怪物", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就")) {
+            if (template.title in setOf("给予物品", "给予角色", "给予武器", "给予圣遗物", "生成怪物", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就", "设置属性")) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -368,10 +434,17 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
 }
 
 @Composable
-private fun HistoryRow(command: String, onCopy: () -> Unit, onDelete: () -> Unit) {
+private fun HistoryRow(command: String, connected: Boolean, host: String, token: String, scope: kotlinx.coroutines.CoroutineScope, snackbar: SnackbarHostState, onCopy: () -> Unit, onDelete: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onCopy).padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(command, modifier = Modifier.weight(1f), fontFamily = FontFamily.Monospace)
         IconButton(onClick = onCopy) { Icon(Icons.Default.ContentCopy, "复制") }
+        IconButton(enabled = connected, onClick = {
+            scope.launch {
+                runCatching { OpenCommandClient(host).invoke(token, command) }
+                    .onSuccess { snackbar.showSnackbar(it.ifBlank { "指令已发送" }) }
+                    .onFailure { snackbar.showSnackbar("发送失败：${it.message ?: "未知错误"}") }
+            }
+        }) { Text("发送") }
         IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "删除") }
     }
 }
@@ -382,8 +455,16 @@ private fun copy(context: Context, text: String) {
 
 private class HistoryStore(context: Context) {
     private val preferences = context.getSharedPreferences("command_history", Context.MODE_PRIVATE)
-    fun load(): List<String> = preferences.getStringSet("items", emptySet())!!.toList().take(20)
+    fun load(): List<String> = runCatching {
+        val array = JSONArray(preferences.getString("items_json", "[]"))
+        List(array.length()) { array.getString(it) }.take(20)
+    }.getOrDefault(emptyList())
     fun add(command: String): List<String> = (listOf(command) + load().filter { it != command }).take(20).also { save(it) }
     fun remove(command: String): List<String> = load().filter { it != command }.also { save(it) }
-    private fun save(items: List<String>) { preferences.edit().putStringSet("items", LinkedHashSet(items)).apply() }
+    fun clear(): List<String> = emptyList<String>().also { save(it) }
+    private fun save(items: List<String>) {
+        val array = JSONArray()
+        items.forEach { array.put(it) }
+        preferences.edit().putString("items_json", array.toString()).remove("items").apply()
+    }
 }
