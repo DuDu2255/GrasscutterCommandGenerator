@@ -34,7 +34,7 @@ internal class OpenCommandClient(host: String) {
     /** Sends the code and returns the temporary token required by verify. */
     suspend fun sendCode(playerId: Int): String = request("sendCode", playerId).optString("data")
 
-    suspend fun verify(code: Int): String = request("verify", code).optString("data")
+    suspend fun verify(code: Int, token: String): String = request("verify", code, token).optString("data")
 
     suspend fun invoke(token: String, command: String): String = request("command", command, token).optString("data")
 

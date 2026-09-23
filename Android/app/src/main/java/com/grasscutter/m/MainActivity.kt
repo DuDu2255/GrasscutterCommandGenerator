@@ -249,9 +249,12 @@ private fun CommandGeneratorApp() {
     val scope = rememberCoroutineScope()
     val visibleTemplates = templates.filter { selectedGroup == "全部" || templateGroup(it.title) == selectedGroup }
     val selected = visibleTemplates.firstOrNull { it.title == selectedTitle } ?: visibleTemplates.first()
-    LaunchedEffect(host, token) {
-        if (token.isNotBlank() && host.isNotBlank()) {
-            runCatching { OpenCommandClient(host).ping(token) }
+    LaunchedEffect(Unit) {
+        // Validate only the token loaded from preferences. A temporary sendCode token
+        // must remain available for verify and must not mark the session connected.
+        val savedToken = token
+        if (savedToken.isNotBlank() && host.isNotBlank()) {
+            runCatching { OpenCommandClient(host).ping(savedToken) }
                 .onSuccess { connected = true; connectionStatus = "已连接" }
                 .onFailure { connected = false; connectionStatus = "Token 已失效或服务器不可达" }
         }
@@ -470,7 +473,12 @@ private fun RemoteConnectionPanel(
                 Button(enabled = host.isNotBlank() && verificationCode.isNotBlank(), onClick = {
                     scope.launch {
                         onStatus("验证中...")
-                        runCatching { OpenCommandClient(host).verify(verificationCode.toInt()) }
+                        val code = verificationCode.trim().toIntOrNull()
+                        if (code == null) {
+                            onStatus("验证失败：验证码必须是数字")
+                            return@launch
+                        }
+                        runCatching { OpenCommandClient(host).verify(code, token) }
                             .onSuccess { newToken -> onToken(newToken); onConnected(newToken); onStatus("OpenCommand 已连接") }
                             .onFailure { onStatus("验证失败：${it.message ?: "未知错误"}") }
                     }
