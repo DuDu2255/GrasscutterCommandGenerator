@@ -412,6 +412,7 @@ private fun GachaBannerEditor(context: Context, language: String) {
     var bannersText by rememberSaveable { mutableStateOf("") }
     var query by rememberSaveable { mutableStateOf("") }
     var itemQuery by rememberSaveable { mutableStateOf("") }
+    var pathQuery by rememberSaveable { mutableStateOf("") }
     var selectedIndex by rememberSaveable { mutableStateOf(0) }
     var status by rememberSaveable { mutableStateOf("") }
     val catalog = remember(language) { ResourceCatalog(context, language) }
@@ -474,6 +475,17 @@ private fun GachaBannerEditor(context: Context, language: String) {
                         selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
                         status = "已删除卡池"
                     }) { Text("删除选中") }
+                    Button(enabled = selected != null, onClick = {
+                        selected?.let { source ->
+                            val copy = JSONObject(source.toString())
+                            copy.put("scheduleId", (array.length() + 1) * 100)
+                            copy.put("comment", copy.optString("comment", "卡池") + " 副本")
+                            array.put(copy)
+                            bannersText = array.toString(2)
+                            selectedIndex = array.length() - 1
+                            status = "已复制卡池"
+                        }
+                    }) { Text("复制选中") }
                     Button(onClick = { status = validateGachaBanners(array) }) { Text("校验") }
                 }
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -493,6 +505,19 @@ private fun GachaBannerEditor(context: Context, language: String) {
                     }
                     GachaField("计划 ID", selected.optInt("scheduleId", 0).toString(), "scheduleId") { key, value ->
                         value.toIntOrNull()?.let { selected.put(key, it); bannersText = array.toString(2) }
+                    }
+                    OutlinedTextField(pathQuery, { pathQuery = it }, label = { Text("搜索祈愿预设或标题资源") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    if (pathQuery.isNotBlank()) {
+                        catalog.search("祈愿预设", pathQuery).take(6).forEach { entry ->
+                            TextButton(onClick = { selected.put("prefabPath", entry.id); bannersText = array.toString(2) }, modifier = Modifier.fillMaxWidth()) {
+                                Text("预设：${entry.id}  ${entry.name}")
+                            }
+                        }
+                        catalog.search("祈愿标题", pathQuery).take(6).forEach { entry ->
+                            TextButton(onClick = { selected.put("titlePath", entry.id); bannersText = array.toString(2) }, modifier = Modifier.fillMaxWidth()) {
+                                Text("标题：${entry.id}  ${entry.name}")
+                            }
+                        }
                     }
                     GachaField("Prefab 路径", selected.optString("prefabPath"), "prefabPath") { key, value -> selected.put(key, value); bannersText = array.toString(2) }
                     GachaField("标题路径", selected.optString("titlePath"), "titlePath") { key, value -> selected.put(key, value); bannersText = array.toString(2) }
