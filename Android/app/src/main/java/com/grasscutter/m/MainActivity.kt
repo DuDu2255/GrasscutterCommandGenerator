@@ -804,6 +804,14 @@ private fun ShopEditor(context: Context, language: String) {
                         GachaField("创世结晶消耗", item.optInt("mcoin", 0).toString(), "mcoin") { _, value -> value.toIntOrNull()?.let { item.put("mcoin", it); shopText = shops.toString(2) } }
                         GachaField("原石消耗", item.optInt("hcoin", 0).toString(), "hcoin") { _, value -> value.toIntOrNull()?.let { item.put("hcoin", it); shopText = shops.toString(2) } }
                         GachaField("购买限制", item.optInt("buyLimit", 1).toString(), "buyLimit") { _, value -> value.toIntOrNull()?.let { item.put("buyLimit", it); shopText = shops.toString(2) } }
+                        GachaField("额外消耗物品 JSON", item.optJSONArray("costItemList")?.toString() ?: "[]", "costItemList") { key, value ->
+                            runCatching {
+                                val parsed = JSONTokener(value).nextValue()
+                                require(parsed is JSONArray)
+                                item.put(key, parsed)
+                                shopText = shops.toString(2)
+                            }
+                        }
                     }
                 }
             }
