@@ -163,6 +163,18 @@ private fun CommandGeneratorApp() {
     var connectionStatus by remember { mutableStateOf("未连接") }
     var connected by remember { mutableStateOf(connection.token.isNotBlank()) }
     var history by remember { mutableStateOf(store.load()) }
+    val historyExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) runCatching {
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(JSONArray(history).toString(2)) }
+        }
+    }
+    val historyImportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) runCatching {
+            val array = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { JSONArray(it.readText()) } ?: JSONArray()
+            val imported = List(array.length()) { array.getString(it) }
+            history = store.replace(imported)
+        }
+    }
     var jsonName by remember { mutableStateOf("config.json") }
     var jsonText by remember { mutableStateOf("") }
     var jsonStatus by remember { mutableStateOf("") }
@@ -313,9 +325,13 @@ private fun CommandGeneratorApp() {
             }) }
             item { HorizontalDivider() }
             item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Text("最近生成", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
-                    TextButton(onClick = { history = store.clear() }) { Text("清空历史") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { historyImportLauncher.launch(arrayOf("application/json", "text/plain")) }) { Text("导入") }
+                        TextButton(onClick = { historyExportLauncher.launch("grasscutter-command-history.json") }) { Text("导出") }
+                        TextButton(onClick = { history = store.clear() }) { Text("清空历史") }
+                    }
                 }
             }
             items(history, key = { it }) { command ->
@@ -508,6 +524,7 @@ private class HistoryStore(context: Context) {
     fun add(command: String): List<String> = (listOf(command) + load().filter { it != command }).take(20).also { save(it) }
     fun remove(command: String): List<String> = load().filter { it != command }.also { save(it) }
     fun clear(): List<String> = emptyList<String>().also { save(it) }
+    fun replace(items: List<String>): List<String> = items.filter { it.isNotBlank() }.distinct().take(20).also { save(it) }
     private fun save(items: List<String>) {
         val array = JSONArray()
         items.forEach { array.put(it) }
