@@ -87,8 +87,14 @@ private val templates = listOf(
     CommandTemplate("给予物品", listOf("物品 ID", "数量", "等级", "玩家 UID"), listOf("223", "1", "", "")) { v ->
         "/give ${v[0]} x${v[1]}" + v[2].takeIf { it.isNotBlank() }?.let { " lv$it" }.orEmpty() + v[3].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
+    CommandTemplate("掉落物品", listOf("物品 ID", "数量"), listOf("223", "1")) { v ->
+        "/drop ${v[0]} ${v[1]}"
+    },
     CommandTemplate("给予角色", listOf("角色 ID", "等级 (1-90)", "命座 (0-6)", "技能等级", "玩家 UID"), listOf("10000007", "90", "0", "", "")) { v ->
         "/give ${v[0]} lv${v[1]} c${v[2]}" + v[3].takeIf { it.isNotBlank() }?.let { " sl$it" }.orEmpty() + v[4].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
+    },
+    CommandTemplate("给予角色（兼容）", listOf("角色 ID", "等级 (1-90)"), listOf("10000007", "90")) { v ->
+        "/givechar ${v[0]} ${v[1]}"
     },
     CommandTemplate("给予武器", listOf("武器 ID", "数量", "等级 (1-90)", "精炼 (1-5)", "玩家 UID"), listOf("11501", "1", "90", "1", "")) { v ->
         "/give ${v[0]} x${v[1]} lv${v[2]} r${v[3]}" + v[4].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
@@ -131,6 +137,9 @@ private val templates = listOf(
     CommandTemplate("解锁全部", emptyList(), emptyList()) { _ -> "/unlockall" },
     CommandTemplate("切换元素", listOf("元素 fire/water/wind/electric/ice/rock/grass"), listOf("fire")) { v -> "/se ${v[0]}" },
     CommandTemplate("天赋等级", listOf("天赋类型", "等级"), listOf("all", "10")) { v -> "/talent ${v[0]} ${v[1]}" },
+    CommandTemplate("角色属性", listOf("属性名", "数值"), listOf("attack", "100")) { v -> "/setstats ${v[0]} ${v[1]}" },
+    CommandTemplate("锁定角色属性", listOf("属性名", "数值"), listOf("attack", "100")) { v -> "/setstats lock ${v[0]} ${v[1]}" },
+    CommandTemplate("解锁角色属性", listOf("属性名"), listOf("attack")) { v -> "/setstats unlock ${v[0]}" },
     CommandTemplate("设置命座", listOf("命座等级", "是否全部 all"), listOf("6", "")) { v -> "/setConst ${v[0]} ${v[1]}".trim() },
     CommandTemplate("重置命座", listOf("是否全部 all"), listOf("all")) { v -> "/resetConst ${v[0]}" },
     CommandTemplate("场景标签", listOf("操作 unlock/reset", "标签 ID"), listOf("unlock", "")) { v -> "/tag ${v[0]} ${v[1]}".trim() },
@@ -151,11 +160,11 @@ private val templates = listOf(
 private val templateGroups = listOf("全部", "物品角色", "世界场景", "任务成就", "玩家管理", "高级操作", "自定义")
 
 private fun templateGroup(title: String): String = when (title) {
-    "给予物品", "给予角色", "给予武器", "给予圣遗物", "生成物品", "生成怪物" -> "物品角色"
+    "给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成物品", "生成怪物" -> "物品角色"
     "传送", "场景", "地城", "过场动画", "天气", "设置属性", "世界等级", "深境螺旋等级", "开放状态", "解锁全部" -> "世界场景"
     "任务", "成就", "成就全部", "成就进度" -> "任务成就"
     "权限管理", "账号管理", "封禁玩家", "解禁玩家", "发送邮件" -> "玩家管理"
-    "切换元素", "天赋等级", "设置命座", "重置命座", "场景标签" -> "高级操作"
+    "切换元素", "天赋等级", "角色属性", "锁定角色属性", "解锁角色属性", "设置命座", "重置命座", "场景标签" -> "高级操作"
     "自定义", "批量命令" -> "自定义"
     else -> "全部"
 }
@@ -488,7 +497,7 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            if (template.title in setOf("给予物品", "给予角色", "给予武器", "给予圣遗物", "生成怪物", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就", "设置属性")) {
+            if (template.title in setOf("给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成怪物", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就", "设置属性")) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
