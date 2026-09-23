@@ -208,6 +208,13 @@ private fun CommandGeneratorApp() {
     val scope = rememberCoroutineScope()
     val visibleTemplates = templates.filter { selectedGroup == "全部" || templateGroup(it.title) == selectedGroup }
     val selected = visibleTemplates.firstOrNull { it.title == selectedTitle } ?: visibleTemplates.first()
+    LaunchedEffect(host, token) {
+        if (token.isNotBlank() && host.isNotBlank()) {
+            runCatching { OpenCommandClient(host).ping(token) }
+                .onSuccess { connected = true; connectionStatus = "已连接" }
+                .onFailure { connected = false; connectionStatus = "Token 已失效或服务器不可达" }
+        }
+    }
     LaunchedEffect(selectedGroup) {
         if (selectedTitle !in visibleTemplates.map { it.title }) selectedTitle = selected.title
     }

@@ -10,7 +10,7 @@ import java.net.URL
 internal class OpenCommandClient(host: String) {
     private val api = host.trimEnd('/') + "/opencommand/api"
 
-    suspend fun ping(): String = request("ping", null).optString("data", "unknown")
+    suspend fun ping(token: String = ""): String = request("ping", null, token).optString("data", "unknown")
 
     suspend fun sendCode(playerId: Int) {
         request("sendCode", playerId)
