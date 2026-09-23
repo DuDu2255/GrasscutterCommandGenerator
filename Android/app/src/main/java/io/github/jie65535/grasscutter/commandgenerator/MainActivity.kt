@@ -101,6 +101,18 @@ private val templates = listOf(
     CommandTemplate("成就", listOf("操作 grant/revoke", "成就 ID"), listOf("grant", "")) { v -> "/achievement ${v[0]} ${v[1]}" },
     CommandTemplate("设置属性", listOf("属性名", "数值"), listOf("worldlevel", "8")) { v -> "/prop ${v[0]} ${v[1]}" },
     CommandTemplate("解锁全部", emptyList(), emptyList()) { _ -> "/unlockall" },
+    CommandTemplate("切换元素", listOf("元素 fire/water/wind/electric/ice/rock/grass"), listOf("fire")) { v -> "/se ${v[0]}" },
+    CommandTemplate("天赋等级", listOf("天赋类型", "等级"), listOf("all", "10")) { v -> "/talent ${v[0]} ${v[1]}" },
+    CommandTemplate("设置命座", listOf("命座等级", "是否全部 all"), listOf("6", "")) { v -> "/setConst ${v[0]} ${v[1]}".trim() },
+    CommandTemplate("重置命座", listOf("是否全部 all"), listOf("all")) { v -> "/resetConst ${v[0]}" },
+    CommandTemplate("场景标签", listOf("操作 unlock/reset", "标签 ID"), listOf("unlock", "")) { v -> "/tag ${v[0]} ${v[1]}".trim() },
+    CommandTemplate("权限管理", listOf("操作 grant/revoke/list/clear", "玩家 UID", "权限节点"), listOf("list", "", "")) { v -> "/permission ${v[0]} ${v[1].takeIf { it.isNotBlank() }?.let { "@$it" }.orEmpty()} ${v[2]}".trim() },
+    CommandTemplate("账号管理", listOf("操作 create/delete/rename", "用户名", "UID（可选）"), listOf("create", "", "")) { v -> "/account ${v[0]} ${v[1]} ${v[2]}".trim() },
+    CommandTemplate("封禁玩家", listOf("玩家 UID", "Unix 解禁时间", "原因（可选）"), listOf("", "0", "")) { v -> "/ban @${v[0]} ${v[1]} ${v[2]}".trim() },
+    CommandTemplate("解禁玩家", listOf("玩家 UID"), listOf("")) { v -> "/unban @${v[0]}" },
+    CommandTemplate("发送邮件", listOf("收件人 UID 或 all", "标题", "内容", "发件人", "附件：物品ID 数量 等级"), listOf("all", "标题", "内容", "Grasscutter", "")) { v ->
+        "/sendMail ${v[0]} | /sendMail ${v[1]} | /sendMail ${v[2].replace("\n", "\\n")} | /sendMail ${v[3]}" + v[4].takeIf { it.isNotBlank() }?.let { " | /sendMail $it" }.orEmpty() + " | /sendMail finish"
+    },
     CommandTemplate("自定义", listOf("完整指令"), listOf("/help")) { v -> v[0] },
 )
 
