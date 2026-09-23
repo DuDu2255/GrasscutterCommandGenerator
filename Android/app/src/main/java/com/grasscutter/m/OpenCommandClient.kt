@@ -31,9 +31,8 @@ internal class OpenCommandClient(host: String) {
 
     suspend fun ping(token: String = ""): String = request("ping", null, token).optString("data", "unknown")
 
-    suspend fun sendCode(playerId: Int) {
-        request("sendCode", playerId)
-    }
+    /** Sends the code and returns the temporary token required by verify. */
+    suspend fun sendCode(playerId: Int): String = request("sendCode", playerId).optString("data")
 
     suspend fun verify(code: Int): String = request("verify", code).optString("data")
 
@@ -52,6 +51,9 @@ internal class OpenCommandClient(host: String) {
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val responseText = (if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (responseText.isBlank()) {
+                error("OpenCommand returned an empty response (HTTP ${connection.responseCode})")
+            }
             val response = JSONObject(responseText)
             if (response.optInt("retcode", connection.responseCode) != 200) {
                 error(response.optString("message", "OpenCommand request failed"))

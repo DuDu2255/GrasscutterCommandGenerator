@@ -452,7 +452,14 @@ private fun RemoteConnectionPanel(
                             return@launch
                         }
                         runCatching { OpenCommandClient(host).sendCode(uid) }
-                            .onSuccess { onStatus("验证码已发送，请在游戏内查看") }
+                            .onSuccess { temporaryToken ->
+                                if (temporaryToken.isBlank()) {
+                                    onStatus("验证码已发送，但服务器没有返回临时 Token")
+                                } else {
+                                    onToken(temporaryToken)
+                                    onStatus("验证码已发送，请在游戏内查看")
+                                }
+                            }
                             .onFailure { onStatus("发送失败：${it.message ?: "未知错误"}") }
                     }
                 }) { Text("发送验证码") }
