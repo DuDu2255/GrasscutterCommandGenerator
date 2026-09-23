@@ -459,7 +459,7 @@ private fun AboutPanel(context: Context) {
                 Text("版本 ${BuildConfig.VERSION_NAME} · 包名 com.grasscutter.m", style = MaterialTheme.typography.bodySmall)
                 Text("基于 GrasscutterTools 的 Android 适配，遵循 AGPL-3.0-or-later。", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/DuDu2255/GrasscutterCommandGenerator")))
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/jie65535/GrasscutterCommandGenerator")))
                 }) { Text("打开项目源码") }
             }
         }
