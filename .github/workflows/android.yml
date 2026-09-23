@@ -2,7 +2,7 @@ name: Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, android]
     paths: ["Android/**", "Source/GrasscutterTools/Resources/**"]
   workflow_dispatch:
 
