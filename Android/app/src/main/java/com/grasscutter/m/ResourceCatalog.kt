@@ -45,6 +45,7 @@ internal class ResourceCatalog(private val context: Context, private val languag
         val file = when (kind) {
             "给予物品", "生成物品" -> "upstream/$language/Item.txt"
             "给予圣遗物" -> "upstream/$language/Artifact.txt"
+            "给予圣遗物套装" -> "upstream/$language/ArtifactCat.txt"
             "给予角色" -> "upstream/$language/Avatar.txt"
             "给予武器" -> "upstream/$language/Weapon.txt"
             "生成怪物" -> "upstream/$language/Monsters.txt"

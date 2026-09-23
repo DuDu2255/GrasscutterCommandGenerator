@@ -1383,6 +1383,18 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
     var searchQuery by rememberSaveable(template.title + "-search") { mutableStateOf("") }
     var substatQuery by rememberSaveable(template.title + "-substat-search") { mutableStateOf("") }
     val catalog = remember(language) { ResourceCatalog(context, language) }
+    val mailExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null && template.title == "发送邮件") runCatching {
+            val mail = JSONObject().put("to", values[0]).put("title", values[1]).put("content", values[2]).put("sender", values[3])
+            val attachments = JSONArray()
+            values[4].lines().map { it.trim() }.filter { it.isNotBlank() }.forEach { line ->
+                val parts = line.split(Regex("[,\\s]+"))
+                if (parts.size >= 2) attachments.put(JSONObject().put("itemId", parts[0].toInt()).put("count", parts[1].toInt()).put("level", parts.getOrNull(2)?.toIntOrNull() ?: 1))
+            }
+            mail.put("attachments", attachments)
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(mail.toString(2)) }
+        }.onFailure { scope.launch { snackbar.showSnackbar("邮件导出失败：${it.message ?: "格式错误"}") } }
+    }
     val command = template.render(values)
     val validationError = when (template.title) {
         "给予圣遗物" -> validateArtifactValues(values)
@@ -1429,6 +1441,12 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                 }
                 if (template.title == "给予圣遗物") {
                     Text("主属性和副属性使用原仓库属性 ID，例如 13007", style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(searchQuery, { searchQuery = it }, label = { Text("搜索圣遗物物品或套装") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    catalog.search("给予圣遗物套装", searchQuery).take(6).forEach { entry ->
+                        TextButton(onClick = { values = values.toMutableList().also { it[0] = entry.id }; searchQuery = "${entry.id} ${entry.name}" }, modifier = Modifier.fillMaxWidth()) {
+                            Text("套装：${entry.id}  ${entry.name}")
+                        }
+                    }
                     Text("主属性", style = MaterialTheme.typography.labelLarge)
                     catalog.search("给予圣遗物主属性", searchQuery).take(4).forEach { entry ->
                         TextButton(onClick = { values = values.toMutableList().also { it[2] = entry.id } }) { Text("${entry.id}  ${entry.name}") }
@@ -1486,6 +1504,7 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     }
                     TextButton(onClick = { values = values.toMutableList().also { it[4] = "" } }) { Text("清空附件") }
                 }
+                Button(enabled = validationError.isBlank(), onClick = { mailExportLauncher.launch("grasscutter-mail.json") }) { Text("导出邮件 JSON") }
             }
             if (template.title == "自定义") {
                 OutlinedTextField(searchQuery, { searchQuery = it }, label = { Text("搜索预设名称或命令") }, singleLine = true, modifier = Modifier.fillMaxWidth())
