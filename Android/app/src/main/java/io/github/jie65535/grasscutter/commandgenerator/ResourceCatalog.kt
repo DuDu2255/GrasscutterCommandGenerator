@@ -43,6 +43,10 @@ internal class ResourceCatalog(private val context: Context) {
             "天气" -> "upstream/zh-cn/Weather.txt"
             "任务" -> "upstream/zh-cn/Quest.txt"
             "成就" -> "upstream/zh-cn/Achievement.txt"
+            "活动" -> "upstream/zh-cn/Activity.txt"
+            "祈愿预设" -> "upstream/zh-cn/GachaBannerPrefab.txt"
+            "祈愿标题" -> "upstream/zh-cn/GachaBannerTitle.txt"
+            "商店" -> "upstream/zh-cn/ShopType.txt"
             else -> return emptyList()
         }
         return runCatching {
