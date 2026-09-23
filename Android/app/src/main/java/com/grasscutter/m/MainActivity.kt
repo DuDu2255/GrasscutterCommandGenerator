@@ -639,6 +639,33 @@ private fun parseBoolean(value: String): Boolean? = when (value.trim().lowercase
     else -> null
 }
 
+private fun validateArtifactValues(values: List<String>): String {
+    if (values.size < 4) return "圣遗物参数不完整"
+    val level = values[1].trim().toIntOrNull() ?: return "圣遗物等级必须是数字"
+    if (level !in 0..20) return "圣遗物等级必须在 0-20 之间"
+    val main = values[2].trim()
+    if (main.isNotBlank() && main.toIntOrNull() == null) return "圣遗物主属性 ID 必须是数字"
+    values[3].trim().split(Regex("[;\\s]+"))
+        .filter { it.isNotBlank() }
+        .forEach { token ->
+            val parts = token.split(',')
+            if (parts.size !in 1..2 || parts.any { it.toIntOrNull() == null }) return "副属性格式错误：$token"
+            if (parts.size == 2 && parts[1].toIntOrNull()!! <= 0) return "副属性强化次数必须大于 0：$token"
+        }
+    return ""
+}
+
+private fun validateMailAttachments(text: String): String {
+    text.lines().map { it.trim() }.filter { it.isNotBlank() }.forEach { line ->
+        val parts = line.split(Regex("[,\\s]+"))
+        if (parts.size !in 2..3 || parts[0].toIntOrNull() == null || parts[1].toIntOrNull()?.let { it > 0 } != true) {
+            return "邮件附件格式错误：$line（应为 物品ID 数量 等级）"
+        }
+        if (parts.size == 3 && (parts[2].toIntOrNull()?.let { it >= 0 } != true)) return "邮件附件等级无效：$line"
+    }
+    return ""
+}
+
 @Composable
 private fun ShopEditor(context: Context) {
     var shopText by rememberSaveable { mutableStateOf("") }
@@ -1109,6 +1136,11 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
     var substatQuery by rememberSaveable(template.title + "-substat-search") { mutableStateOf("") }
     val catalog = remember(language) { ResourceCatalog(context, language) }
     val command = template.render(values)
+    val validationError = when (template.title) {
+        "给予圣遗物" -> validateArtifactValues(values)
+        "发送邮件" -> validateMailAttachments(values.getOrNull(4).orEmpty())
+        else -> ""
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(template.title, style = MaterialTheme.typography.titleLarge)
@@ -1194,14 +1226,17 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
             if (template.title == "给予圣遗物") {
                 Text("等级范围 0-20；副属性可用空格、逗号或分号分隔。", style = MaterialTheme.typography.bodySmall)
             }
+            if (validationError.isNotBlank()) {
+                Text(validationError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { copy(context, command); onSaved(command); scope.launch { snackbar.showSnackbar("已复制指令") } }) {
+                Button(enabled = validationError.isBlank(), onClick = { copy(context, command); onSaved(command); scope.launch { snackbar.showSnackbar("已复制指令") } }) {
                     Icon(Icons.Default.ContentCopy, contentDescription = null); Spacer(Modifier.padding(2.dp)); Text("复制")
                 }
-                TextButton(onClick = {
+                TextButton(enabled = validationError.isBlank(), onClick = {
                     context.startActivity(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, command) })
                 }) { Icon(Icons.Default.Share, contentDescription = null); Text("分享") }
-                TextButton(enabled = connected, onClick = {
+                TextButton(enabled = connected && validationError.isBlank(), onClick = {
                     scope.launch {
                         runCatching { OpenCommandClient(host).invoke(token, command) }
                             .onSuccess { snackbar.showSnackbar(it.ifBlank { "指令已发送" }) }
