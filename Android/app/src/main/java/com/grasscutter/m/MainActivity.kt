@@ -438,6 +438,7 @@ private fun CommandGeneratorApp() {
             if (selectedModule == "命令生成") item(key = selected.title + language) { CommandForm(selected, context, snackbar, scope, connected, host, token, language, onSaved = { command ->
                 history = store.add(command)
             }) }
+            if (selectedModule == "命令生成") item { SpawnPresetPanel(context, snackbar, scope) }
             if (selectedModule == "命令生成") item { HorizontalDivider() }
             if (selectedModule == "命令生成") item {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -475,6 +476,65 @@ private fun AboutPanel(context: Context) {
             }
         }
     }
+}
+
+@Composable
+private fun SpawnPresetPanel(context: Context, snackbar: SnackbarHostState, scope: kotlinx.coroutines.CoroutineScope) {
+    val preferences = remember { context.getSharedPreferences("spawn_presets", Context.MODE_PRIVATE) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var entityId by rememberSaveable { mutableStateOf("20010101") }
+    var count by rememberSaveable { mutableStateOf("1") }
+    var level by rememberSaveable { mutableStateOf("1") }
+    var radius by rememberSaveable { mutableStateOf("5") }
+    var height by rememberSaveable { mutableStateOf("0") }
+    var interval by rememberSaveable { mutableStateOf("1") }
+    var presets by remember { mutableStateOf(loadSpawnPresets(preferences)) }
+    val command = "/spawn $entityId $count $level $radius $height $interval"
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("实体生成预设", style = MaterialTheme.typography.titleLarge)
+            Text("保存常用实体生成参数，避免重复填写。", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(name, { name = it }, label = { Text("预设名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(entityId, { entityId = it }, label = { Text("实体 ID") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(count, { count = it }, label = { Text("数量") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(level, { level = it }, label = { Text("等级") }, singleLine = true, modifier = Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(radius, { radius = it }, label = { Text("半径") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(height, { height = it }, label = { Text("高度") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(interval, { interval = it }, label = { Text("间隔") }, singleLine = true, modifier = Modifier.weight(1f))
+            }
+            Text(command, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+            Button(enabled = name.isNotBlank() && entityId.toIntOrNull() != null, onClick = {
+                presets = (presets.filter { it.first != name.trim() } + (name.trim() to command)).takeLast(30)
+                saveSpawnPresets(preferences, presets)
+                scope.launch { snackbar.showSnackbar("实体预设已保存") }
+                name = ""
+            }) { Text("保存预设") }
+            presets.forEach { (presetName, presetCommand) ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        val parts = presetCommand.removePrefix("/spawn ").split(" ")
+                        if (parts.size >= 6) { entityId = parts[0]; count = parts[1]; level = parts[2]; radius = parts[3]; height = parts[4]; interval = parts[5] }
+                    }, modifier = Modifier.weight(1f)) { Text("$presetName  $presetCommand") }
+                    TextButton(onClick = { presets = presets.filter { it.first != presetName }; saveSpawnPresets(preferences, presets) }) { Text("删除") }
+                }
+            }
+        }
+    }
+}
+
+private fun loadSpawnPresets(preferences: android.content.SharedPreferences): List<Pair<String, String>> = runCatching {
+    val array = JSONArray(preferences.getString("items", "[]"))
+    List(array.length()) { array.optJSONObject(it)?.let { item -> item.optString("name") to item.optString("command") } ?: ("" to "") }
+        .filter { it.first.isNotBlank() && it.second.isNotBlank() }
+}.getOrDefault(emptyList())
+
+private fun saveSpawnPresets(preferences: android.content.SharedPreferences, presets: List<Pair<String, String>>) {
+    val array = JSONArray()
+    presets.forEach { (name, command) -> array.put(JSONObject().put("name", name).put("command", command)) }
+    preferences.edit().putString("items", array.toString()).apply()
 }
 
 @Composable
