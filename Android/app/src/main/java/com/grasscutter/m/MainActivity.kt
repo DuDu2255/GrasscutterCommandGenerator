@@ -236,6 +236,7 @@ private fun CommandGeneratorApp() {
     }
     var selectedTitle by rememberSaveable { mutableStateOf(templates.first().title) }
     var selectedGroup by rememberSaveable { mutableStateOf("全部") }
+    var showUpdateGuide by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val visibleTemplates = templates.filter { selectedGroup == "全部" || templateGroup(it.title) == selectedGroup }
@@ -280,6 +281,12 @@ private fun CommandGeneratorApp() {
                         }) { Text(if (darkTheme) "浅色主题" else "深色主题") }
                         TextButton(onClick = { settingsImportLauncher.launch(arrayOf("application/json", "text/plain")) }) { Text("导入设置") }
                         TextButton(onClick = { settingsExportLauncher.launch("grasscutter-settings.json") }) { Text("导出设置") }
+                        TextButton(onClick = { showUpdateGuide = !showUpdateGuide }) {
+                            Text(if (showUpdateGuide) "收起说明" else "使用与更新说明")
+                        }
+                    }
+                    if (showUpdateGuide) {
+                        UpdateGuide()
                     }
                 }
             }
@@ -389,6 +396,22 @@ private fun CommandGeneratorApp() {
             }
         }
     }
+    }
+}
+
+@Composable
+private fun UpdateGuide() {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("7.0 指令生成器使用说明", style = MaterialTheme.typography.titleMedium)
+            Text("1. 本地服务器：Grasscutter 和 gc-opencommand-plugin 在同一台手机上时可填写 http://127.0.0.1:8091。电脑运行服务器时，请填写电脑局域网 IP，例如 http://192.168.1.100:8091；公网服务器填写可访问的域名或 IP。", style = MaterialTheme.typography.bodySmall)
+            Text("2. 远程连接：先点“检测服务器”，再填写玩家 UID 并发送验证码，在游戏内查看验证码后点“验证并连接”。已有 Token 可以直接填写并保存。HTTP 和 HTTPS 地址都受支持。", style = MaterialTheme.typography.bodySmall)
+            Text("3. 搜索与生成：在物品、角色、武器、圣遗物等表单中按名称或 ID 搜索，点击结果会自动填入 ID；生成后可以复制、分享、保存历史或发送到已连接服务器。", style = MaterialTheme.typography.bodySmall)
+            Text("4. 更新资源：同步原仓库 main 分支后，Android 构建会自动从 Source/GrasscutterTools/Resources 同步资源，通常不需要修改 Android 代码。", style = MaterialTheme.typography.bodySmall)
+            Text("5. 更新版本：发布 7.1 时把 Android/app/build.gradle.kts 的 versionCode 增加为下一个整数、versionName 改为 7.1.0；applicationId 和 namespace 必须保持 com.grasscutter.m。使用与旧版相同的签名密钥后，7.1 APK 才能覆盖安装 7.0。", style = MaterialTheme.typography.bodySmall)
+            Text("6. 安装包位置：云编译成功后，在 GitHub Actions 的 Artifacts 下载 release APK。若提示无法覆盖安装，先确认签名密钥一致，或卸载旧版后再安装（会清除应用内设置和历史）。", style = MaterialTheme.typography.bodySmall)
+            Text("当前应用版本：${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.labelMedium)
+        }
     }
 }
 
