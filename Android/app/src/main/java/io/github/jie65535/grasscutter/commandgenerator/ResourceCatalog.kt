@@ -13,6 +13,24 @@ internal class ResourceCatalog(private val context: Context) {
         return entries.filter { it.id.contains(query, true) || it.name.contains(query, true) }.take(8)
     }
 
+    fun idForGood(kind: String, key: String): String? {
+        val file = when (kind) {
+            "给予物品" -> "upstream/en-us/Item.txt"
+            "给予角色" -> "upstream/en-us/Avatar.txt"
+            "给予武器" -> "upstream/en-us/Weapon.txt"
+            else -> return null
+        }
+        val needle = key.filter(Char::isLetterOrDigit).lowercase()
+        return runCatching {
+            context.assets.open(file).bufferedReader().useLines { lines ->
+                lines.mapNotNull { line ->
+                    val parts = line.trim().split(Regex("\\s+"), limit = 2)
+                    if (parts.size == 2 && parts[1].filter(Char::isLetterOrDigit).lowercase() == needle) parts[0] else null
+                }.firstOrNull()
+            }
+        }.getOrNull()
+    }
+
     private fun load(kind: String): List<CatalogEntry> {
         val file = when (kind) {
             "给予物品", "给予圣遗物", "生成物品" -> "upstream/zh-cn/Item.txt"

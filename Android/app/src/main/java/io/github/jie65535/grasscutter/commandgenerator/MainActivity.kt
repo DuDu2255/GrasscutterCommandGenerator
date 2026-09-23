@@ -5,8 +5,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -128,8 +130,14 @@ private fun CommandGeneratorApp() {
     var verificationCode by remember { mutableStateOf("") }
     var connectionStatus by remember { mutableStateOf("未连接") }
     var connected by remember { mutableStateOf(connection.token.isNotBlank()) }
-    var selectedTitle by rememberSaveable { mutableStateOf(templates.first().title) }
     var history by remember { mutableStateOf(store.load()) }
+    val goodLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching { GoodImporter.importCommands(context, uri) }
+                .onSuccess { commands -> commands.forEach { history = store.add(it) } }
+        }
+    }
+    var selectedTitle by rememberSaveable { mutableStateOf(templates.first().title) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val selected = templates.first { it.title == selectedTitle }
@@ -148,6 +156,11 @@ private fun CommandGeneratorApp() {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item {
+                Button(onClick = { goodLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }) {
+                    Text("导入 GOOD 存档")
+                }
+            }
             item {
                 RemoteConnectionPanel(
                     host = host,
