@@ -83,14 +83,14 @@ class FloatingWindowService : Service() {
 
         searchInput = EditText(this).apply {
             hint = "搜索命令名称"
-            singleLine = true
+            setSingleLine(true)
             setPadding(dp(8), 0, dp(8), 0)
             addTextChangedListener(SimpleTextWatcher { refreshResults() })
         }
         root.addView(searchInput, LinearLayout.LayoutParams(-1, dp(46)))
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(ScrollView(this).apply { addView(content) }, LinearLayout.LayoutParams(-1, if (compact) dp(90) else dp(250)))
-        commandInput = EditText(this).apply { hint = "指令（可直接输入，例如 /list）"; singleLine = false; minLines = 1; setTextColor(Color.DKGRAY) }
+        commandInput = EditText(this).apply { hint = "指令（可直接输入，例如 /list）"; setSingleLine(false); minLines = 1; setTextColor(Color.DKGRAY) }
         root.addView(commandInput, LinearLayout.LayoutParams(-1, dp(54)))
         val send = Button(this).apply { text = "发送指令"; setOnClickListener { sendCommand(commandInput.text.toString()) } }
         root.addView(send, LinearLayout.LayoutParams(-1, dp(46)))
@@ -111,7 +111,7 @@ class FloatingWindowService : Service() {
         }
         if (!compact && selected != null) {
             selected!!.fields.forEachIndexed { index, label ->
-                val field = EditText(this).apply { hint = label; setText(selected!!.example.getOrNull(index).orEmpty()); singleLine = true }
+                val field = EditText(this).apply { hint = label; setText(selected!!.example.getOrNull(index).orEmpty()); setSingleLine(true) }
                 fields += field; content.addView(field, LinearLayout.LayoutParams(-1, dp(44)))
             }
             val render = Button(this).apply { text = "生成 ${selected!!.title}"; setOnClickListener { commandInput.setText(selected!!.render(fields.map { it.text.toString() })) } }
