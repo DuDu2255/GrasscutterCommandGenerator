@@ -102,17 +102,20 @@ private val templates = listOf(
     CommandTemplate("给予武器", listOf("武器 ID", "数量", "等级 (1-90)", "精炼 (1-5)", "玩家 UID"), listOf("11501", "1", "90", "1", "")) { v ->
         "/give ${v[0]} x${v[1]} lv${v[2]} r${v[3]}" + v[4].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
-    CommandTemplate("给予圣遗物", listOf("圣遗物 ID", "等级 (0-20)", "主属性 ID（可选）", "副属性 ID 列表（可选）", "玩家 UID"), listOf("15001", "20", "", "", "")) { v ->
+    CommandTemplate("给予圣遗物", listOf("圣遗物 ID", "等级 (0-20)", "主属性（可选）", "副属性1（可选）强化次数1-5", "副属性2（可选）强化次数1-5", "副属性3（可选）强化次数1-5", "副属性4（可选）强化次数1-5", "玩家 UID"), listOf("15001", "20", "", "", "", "", "", "")) { v ->
         val level = v[1].toIntOrNull()?.coerceIn(0, 20) ?: 0
-        val subStats = v[3].trim().split(Regex("[;\\s]+")).mapNotNull { token ->
-            val parts = token.split(',')
-            when {
-                parts.size == 2 && parts[0].toIntOrNull() != null && parts[1].toIntOrNull() != null -> "${parts[0]},${parts[1]}"
-                parts.size == 1 && parts[0].toIntOrNull() != null -> parts[0]
-                else -> null
-            }
-        }.distinct().joinToString(" ")
-        "/give ${v[0].trim()} lv$level" + v[2].trim().takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + subStats.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + v[4].trim().takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
+        val subStats = (3..6).mapNotNull { index -> normalizeArtifactSubStat(v.getOrNull(index).orEmpty()) }.distinct().joinToString(" ")
+    /*
+     val parts = token.split(',')
+     when {
+         parts.size == 2 && parts[0].toIntOrNull() != null && parts[1].toIntOrNull() != null -> "${parts[0]},${parts[1]}"
+         parts.size == 1 && parts[0].toIntOrNull() != null -> parts[0]
+         else -> null
+     }
+ }.distinct().joinToString(" ")
+ "/give ${v[0].trim()} lv$level" + v[2].trim().takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + subStats.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + v[4].trim().takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
+    */
+        "/give ${v[0].trim()} lv$level" + v[2].trim().takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + subStats.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty() + v.getOrNull(7).orEmpty().trim().takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
     CommandTemplate("生成怪物", listOf("怪物 ID", "数量", "等级"), listOf("20010101", "1", "1")) { v ->
         "/spawn ${v[0]} ${v[1]} ${v[2]}"
@@ -800,19 +803,27 @@ private fun parseBoolean(value: String): Boolean? = when (value.trim().lowercase
     else -> null
 }
 
+private fun normalizeArtifactSubStat(raw: String): String? {
+    val token = raw.trim()
+    if (token.isBlank()) return null
+    val parts = token.split(',').map { it.trim() }
+    return when {
+        parts.size == 1 && parts[0].toIntOrNull() != null -> parts[0]
+        parts.size == 2 && parts[0].toIntOrNull() != null && parts[1].toIntOrNull()?.let { it in 1..5 } == true -> "${parts[0]},${parts[1]}"
+        else -> null
+    }
+}
+
 private fun validateArtifactValues(values: List<String>): String {
-    if (values.size < 4) return "圣遗物参数不完整"
+    if (values.size < 8) return "圣遗物参数不完整"
     val level = values[1].trim().toIntOrNull() ?: return "圣遗物等级必须是数字"
     if (level !in 0..20) return "圣遗物等级必须在 0-20 之间"
     val main = values[2].trim()
     if (main.isNotBlank() && main.toIntOrNull() == null) return "圣遗物主属性 ID 必须是数字"
-    values[3].trim().split(Regex("[;\\s]+"))
-        .filter { it.isNotBlank() }
-        .forEach { token ->
-            val parts = token.split(',')
-            if (parts.size !in 1..2 || parts.any { it.toIntOrNull() == null }) return "副属性格式错误：$token"
-            if (parts.size == 2 && parts[1].toIntOrNull()!! <= 0) return "副属性强化次数必须大于 0：$token"
-        }
+    (3..6).forEach { index ->
+        val raw = values[index].trim()
+        if (raw.isNotBlank() && normalizeArtifactSubStat(raw) == null) return "副属性${index - 2}格式错误：$raw"
+    }
     return ""
 }
 
@@ -1547,19 +1558,18 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     OutlinedTextField(substatQuery, { substatQuery = it }, label = { Text("搜索副属性") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     catalog.search("给予圣遗物副属性", substatQuery).take(4).forEach { entry ->
                         TextButton(onClick = {
-                            val current = values[3].trim()
-                            val updated = if (current.isBlank()) entry.id else "$current ${entry.id}"
-                            values = values.toMutableList().also { it[3] = updated }
+                            val target = (3..6).firstOrNull { values[it].isBlank() }
+                            if (target != null) values = values.toMutableList().also { it[target] = entry.id }
                         }) { Text("${entry.id}  ${entry.name}") }
                     }
-                    val selectedSubstats = values[3].trim().split(Regex("[;\\s]+" )).filter { it.isNotBlank() }
+                    val selectedSubstats = (3..6).mapNotNull { index -> values.getOrNull(index)?.trim()?.takeIf { it.isNotBlank() }?.let { index to it } }
                     if (selectedSubstats.isNotEmpty()) {
                         Text("已选副属性", style = MaterialTheme.typography.labelLarge)
-                        selectedSubstats.forEachIndexed { index, substat ->
+                        selectedSubstats.forEach { (index, substat) ->
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(substat, modifier = Modifier.weight(1f), fontFamily = FontFamily.Monospace)
+                                Text("副属性${index - 2}: $substat", modifier = Modifier.weight(1f), fontFamily = FontFamily.Monospace)
                                 TextButton(onClick = {
-                                    values = values.toMutableList().also { it[3] = selectedSubstats.filterIndexed { itemIndex, _ -> itemIndex != index }.joinToString(" ") }
+                                    values = values.toMutableList().also { it[index] = "" }
                                 }) { Text("删除") }
                             }
                         }
