@@ -9,9 +9,11 @@ import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -64,9 +66,14 @@ class FloatingWindowService : Service() {
             windowWidth(),
             windowHeight(),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT,
-        ).apply { gravity = Gravity.TOP or Gravity.END; x = dp(12); y = dp(96) }
+        ).apply {
+            gravity = Gravity.TOP or Gravity.END
+            x = dp(12)
+            y = dp(96)
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        }
         expandedView = buildView()
         overlay = expandedView
         windowManager.addView(overlay, layoutParams)
@@ -94,11 +101,12 @@ class FloatingWindowService : Service() {
             setSingleLine(true)
             setPadding(dp(8), 0, dp(8), 0)
             addTextChangedListener(SimpleTextWatcher { refreshResults() })
+            configureInput(this)
         }
         root.addView(searchInput, LinearLayout.LayoutParams(-1, dp(46)))
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(ScrollView(this).apply { addView(content) }, LinearLayout.LayoutParams(-1, if (compact) dp(90) else dp(250)))
-        commandInput = EditText(this).apply { hint = "指令（可直接输入，例如 /list）"; setSingleLine(false); minLines = 1; setTextColor(Color.DKGRAY) }
+        commandInput = EditText(this).apply { hint = "指令（可直接输入，例如 /list）"; setSingleLine(false); minLines = 1; setTextColor(Color.DKGRAY); configureInput(this) }
         root.addView(commandInput, LinearLayout.LayoutParams(-1, dp(54)))
         val send = Button(this).apply { text = "发送指令"; setOnClickListener { sendCommand(commandInput.text.toString()) } }
         root.addView(send, LinearLayout.LayoutParams(-1, dp(46)))
@@ -119,7 +127,7 @@ class FloatingWindowService : Service() {
         }
         if (!compact && selected != null) {
             selected!!.fields.forEachIndexed { index, label ->
-                val field = EditText(this).apply { hint = label; setText(selected!!.example.getOrNull(index).orEmpty()); setSingleLine(true) }
+                val field = EditText(this).apply { hint = label; setText(selected!!.example.getOrNull(index).orEmpty()); setSingleLine(true); configureInput(this) }
                 fields += field; content.addView(field, LinearLayout.LayoutParams(-1, dp(44)))
             }
             val render = Button(this).apply { text = "生成 ${selected!!.title}"; setOnClickListener { commandInput.setText(selected!!.render(fields.map { it.text.toString() })) } }
@@ -141,6 +149,39 @@ class FloatingWindowService : Service() {
         }
     }
 
+    private fun configureInput(input: EditText) {
+        input.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) enableInputFocus(input)
+            false
+        }
+        input.setOnKeyListener { _, keyCode, event ->
+            if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
+                hideInputFocus(input)
+                true
+            } else false
+        }
+    }
+
+    private fun enableInputFocus(input: EditText) {
+        if (layoutParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0) {
+            layoutParams.flags = layoutParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            windowManager.updateViewLayout(overlay, layoutParams)
+        }
+        input.post {
+            input.requestFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                .showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }
+    }
+
+    private fun hideInputFocus(input: EditText) {
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+            .hideSoftInputFromWindow(input.windowToken, 0)
+        input.clearFocus()
+        layoutParams.flags = layoutParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        windowManager.updateViewLayout(overlay, layoutParams)
+    }
+
     private fun rebuild() {
         overlay?.let { windowManager.removeView(it) }
         expandedView = buildView()
@@ -150,6 +191,9 @@ class FloatingWindowService : Service() {
 
     private fun minimize() {
         if (minimized || expandedView == null) return
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+            .hideSoftInputFromWindow(expandedView?.windowToken, 0)
+        layoutParams.flags = layoutParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
         expandedView?.let { windowManager.removeView(it) }
         minimized = true
         if (iconView == null) iconView = buildIcon()
