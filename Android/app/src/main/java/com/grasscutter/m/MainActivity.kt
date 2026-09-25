@@ -1457,7 +1457,7 @@ private fun RemoteConnectionPanel(
 
 @Composable
 private fun CommandForm(template: CommandTemplate, context: Context, snackbar: SnackbarHostState, scope: kotlinx.coroutines.CoroutineScope, connected: Boolean, host: String, token: String, language: String, onSaved: (String) -> Unit) {
-    var values by rememberSaveable(template.title) { mutableStateOf(template.example) }
+    var values by rememberSaveable(template.title, template.fields.size) { mutableStateOf(template.example) }
     var searchQuery by rememberSaveable(template.title + "-search") { mutableStateOf("") }
     var substatQuery by rememberSaveable(template.title + "-substat-search") { mutableStateOf("") }
     var artifactPartQuery by rememberSaveable(template.title + "-artifact-part") { mutableStateOf("") }
