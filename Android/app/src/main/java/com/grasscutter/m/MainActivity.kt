@@ -1711,11 +1711,13 @@ private fun ArtifactPickerDialog(
                     Text("已选副属性 ID：$pendingSubstatId")
                     OutlinedTextField(enhancementCount, onEnhancementChange, label = { Text("强化次数（正整数，不限上限）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
-                results.forEach { entry ->
-                    TextButton(onClick = {
-                        if (index in 3..6) onPendingSubstat(entry.id) else onValue(entry.id)
-                    }, modifier = Modifier.fillMaxWidth()) {
-                        Text("${entry.id}  ${entry.name}", modifier = Modifier.fillMaxWidth())
+                LazyColumn(modifier = Modifier.height(260.dp)) {
+                    items(results) { entry ->
+                        TextButton(onClick = {
+                            if (index in 3..6) onPendingSubstat(entry.id) else onValue(entry.id)
+                        }, modifier = Modifier.fillMaxWidth()) {
+                            Text("${entry.id}  ${entry.name}", modifier = Modifier.fillMaxWidth())
+                        }
                     }
                 }
                 if (results.isEmpty()) Text("没有找到匹配项", style = MaterialTheme.typography.bodySmall)
