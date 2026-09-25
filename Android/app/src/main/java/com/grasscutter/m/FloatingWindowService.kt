@@ -107,7 +107,16 @@ class FloatingWindowService : Service() {
             addTextChangedListener(SimpleTextWatcher { refreshResults() })
             configureInput(this)
         }
-        root.addView(searchInput, LinearLayout.LayoutParams(-1, dp(46)))
+        val searchRow = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(searchInput, LinearLayout.LayoutParams(0, dp(46), 1f))
+            addView(Button(this@FloatingWindowService).apply {
+                text = "清空"
+                contentDescription = "清空命令搜索"
+                setOnClickListener { searchInput.setText("") }
+            }, LinearLayout.LayoutParams(dp(72), dp(46)))
+        }
+        root.addView(searchRow)
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply { addView(content) }
         contentScroll = scroll
@@ -124,7 +133,9 @@ class FloatingWindowService : Service() {
         if (!::content.isInitialized) return
         content.removeAllViews(); fields.clear()
         val query = searchInput.text.toString().trim()
-        templates.filter { query.isBlank() || it.title.contains(query, true) }.take(if (compact) 8 else 40).forEach { template ->
+        templates.filter { query.isBlank() || it.title.contains(query, true) }
+            .take(if (compact) 8 else templates.size)
+            .forEach { template ->
             val button = Button(this).apply {
                 text = template.title
                 setOnClickListener { selectTemplate(template) }
