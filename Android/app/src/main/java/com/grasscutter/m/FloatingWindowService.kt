@@ -3,6 +3,7 @@ package com.grasscutter.m
 import android.app.Service
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -28,7 +29,8 @@ class FloatingWindowService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var windowManager: WindowManager
     private var overlay: View? = null
-    private var compact = false
+    private var compact = true
+    private var minimized = true
     private var selected: CommandTemplate? = null
     private val fields = mutableListOf<EditText>()
     private lateinit var commandInput: EditText
@@ -55,8 +57,8 @@ class FloatingWindowService : Service() {
         }
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         layoutParams = WindowManager.LayoutParams(
-            dp(if (compact) 300 else 380),
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            windowWidth(),
+            windowHeight(),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT,
@@ -66,6 +68,20 @@ class FloatingWindowService : Service() {
     }
 
     private fun buildView(): View {
+        if (minimized) {
+            return TextView(this).apply {
+                text = "GC"
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setTextColor(Color.WHITE)
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.argb(205, 35, 93, 150))
+                }
+                contentDescription = "展开 Grasscutter 指令悬浮窗"
+                setOnClickListener { minimized = false; rebuild() }
+            }
+        }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(10))
@@ -136,7 +152,8 @@ class FloatingWindowService : Service() {
 
     private fun rebuild() {
         overlay?.let { windowManager.removeView(it) }
-        overlay = buildView(); windowManager.addView(overlay, layoutParams.apply { width = dp(if (compact) 300 else 380) })
+        overlay = buildView()
+        windowManager.addView(overlay, layoutParams.apply { width = windowWidth(); height = windowHeight() })
     }
 
     private fun drag(event: MotionEvent): Boolean {
@@ -149,6 +166,8 @@ class FloatingWindowService : Service() {
 
     private fun toast(message: String) { serviceScope.launch { Toast.makeText(this@FloatingWindowService, message, Toast.LENGTH_SHORT).show() } }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    private fun windowWidth() = dp(if (minimized) 56 else if (compact) 300 else 380)
+    private fun windowHeight() = if (minimized) dp(56) else WindowManager.LayoutParams.WRAP_CONTENT
 
     override fun onDestroy() { overlay?.let { windowManager.removeView(it) }; serviceScope.coroutineContext.cancel(); super.onDestroy() }
 }
