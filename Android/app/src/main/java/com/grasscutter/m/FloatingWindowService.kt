@@ -69,7 +69,8 @@ class FloatingWindowService : Service() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(10))
-            setBackgroundColor(Color.rgb(245, 247, 250))
+            // Keep the command controls readable while allowing the app behind the overlay to remain visible.
+            setBackgroundColor(Color.argb(178, 245, 247, 250))
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = if (compact) "指令悬浮窗 · 最小" else "指令悬浮窗"; textSize = 16f; setTextColor(Color.rgb(20, 30, 45)) }
