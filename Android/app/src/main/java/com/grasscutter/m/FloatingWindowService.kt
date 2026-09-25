@@ -44,6 +44,7 @@ class FloatingWindowService : Service() {
     private lateinit var commandInput: EditText
     private lateinit var searchInput: EditText
     private lateinit var content: LinearLayout
+    private var contentScroll: ScrollView? = null
     private var dragX = 0f
     private var dragY = 0f
     private var startX = 0
@@ -107,7 +108,9 @@ class FloatingWindowService : Service() {
         }
         root.addView(searchInput, LinearLayout.LayoutParams(-1, dp(46)))
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(ScrollView(this).apply { addView(content) }, LinearLayout.LayoutParams(-1, if (compact) dp(90) else dp(250)))
+        val scroll = ScrollView(this).apply { addView(content) }
+        contentScroll = scroll
+        root.addView(scroll, LinearLayout.LayoutParams(-1, if (compact) dp(90) else dp(250)))
         commandInput = EditText(this).apply { hint = "指令（可直接输入，例如 /list）"; setSingleLine(false); minLines = 1; setTextColor(Color.DKGRAY); configureInput(this) }
         root.addView(commandInput, LinearLayout.LayoutParams(-1, dp(54)))
         val send = Button(this).apply { text = "发送指令"; setOnClickListener { sendCommand(commandInput.text.toString()) } }
@@ -196,10 +199,16 @@ class FloatingWindowService : Service() {
     }
 
     private fun rebuild() {
-        overlay?.let { windowManager.removeView(it) }
+        val previousSearch = if (::searchInput.isInitialized) searchInput.text.toString() else ""
+        val previousCommand = if (::commandInput.isInitialized) commandInput.text.toString() else ""
+        val previousScroll = contentScroll?.scrollY ?: 0
+        overlay?.let { removeViewSafely(it) }
         expandedView = buildView()
         overlay = expandedView
+        searchInput.setText(previousSearch)
+        commandInput.setText(previousCommand)
         windowManager.addView(overlay, layoutParams.apply { width = windowWidth(); height = windowHeight() })
+        contentScroll?.post { contentScroll?.scrollTo(0, previousScroll) }
     }
 
     private fun minimize() {
@@ -207,7 +216,7 @@ class FloatingWindowService : Service() {
         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
             .hideSoftInputFromWindow(expandedView?.windowToken, 0)
         layoutParams.flags = layoutParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-        expandedView?.let { windowManager.removeView(it) }
+        expandedView?.let { removeViewSafely(it) }
         minimized = true
         if (iconView == null) iconView = buildIcon()
         overlay = iconView
@@ -216,7 +225,7 @@ class FloatingWindowService : Service() {
 
     private fun restore() {
         if (!minimized || expandedView == null) return
-        iconView?.let { windowManager.removeView(it) }
+        iconView?.let { removeViewSafely(it) }
         minimized = false
         overlay = expandedView
         windowManager.addView(overlay, layoutParams.apply { width = windowWidth(); height = windowHeight() })
@@ -261,11 +270,15 @@ class FloatingWindowService : Service() {
     private fun windowHeight() = if (minimized) dp(44) else WindowManager.LayoutParams.WRAP_CONTENT
 
     override fun onDestroy() {
-        overlay?.let { windowManager.removeView(it) }
+        overlay?.let { removeViewSafely(it) }
         expandedView = null
         iconView = null
         serviceScope.coroutineContext.cancel()
         super.onDestroy()
+    }
+
+    private fun removeViewSafely(view: View) {
+        runCatching { windowManager.removeView(view) }
     }
 }
 
