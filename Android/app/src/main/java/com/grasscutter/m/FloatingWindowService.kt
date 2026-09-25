@@ -15,6 +15,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ImageView
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -164,15 +165,15 @@ class FloatingWindowService : Service() {
         windowManager.addView(overlay, layoutParams.apply { width = windowWidth(); height = windowHeight() })
     }
 
-    private fun buildIcon(): View = TextView(this).apply {
-        text = "GC"
-        textSize = 14f
-        gravity = Gravity.CENTER
-        setTextColor(Color.WHITE)
+    private fun buildIcon(): View = ImageView(this).apply {
+        setImageResource(R.drawable.ic_launcher)
+        scaleType = ImageView.ScaleType.CENTER_INSIDE
+        setPadding(dp(5), dp(5), dp(5), dp(5))
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(Color.argb(205, 35, 93, 150))
+            setColor(Color.argb(150, 35, 93, 150))
         }
+        alpha = 0.88f
         contentDescription = "展开 Grasscutter 指令悬浮窗"
         setOnTouchListener { _, event ->
             when (event.actionMasked) {
@@ -199,8 +200,8 @@ class FloatingWindowService : Service() {
 
     private fun toast(message: String) { serviceScope.launch { Toast.makeText(this@FloatingWindowService, message, Toast.LENGTH_SHORT).show() } }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
-    private fun windowWidth() = dp(if (minimized) 56 else if (compact) 300 else 380)
-    private fun windowHeight() = if (minimized) dp(56) else WindowManager.LayoutParams.WRAP_CONTENT
+    private fun windowWidth() = dp(if (minimized) 44 else if (compact) 300 else 380)
+    private fun windowHeight() = if (minimized) dp(44) else WindowManager.LayoutParams.WRAP_CONTENT
 
     override fun onDestroy() {
         overlay?.let { windowManager.removeView(it) }
