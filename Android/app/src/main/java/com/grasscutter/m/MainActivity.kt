@@ -1506,7 +1506,8 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(template.title, style = MaterialTheme.typography.titleLarge)
             template.fields.forEachIndexed { index, label ->
-                val pickerField = template.title == "给予圣遗物" && (index == 0 || index == 2 || index in 3..6)
+                val pickerField = (index == 0 && template.title in setOf("给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成物品", "生成怪物")) ||
+                    (template.title == "给予圣遗物" && (index == 2 || index in 3..6))
                 val openPicker = {
                         artifactPickerIndex = index
                         artifactPickerQuery = ""
@@ -1543,7 +1544,7 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     val baseResults = catalog.search(template.title, searchQuery)
                     val results = if (template.title == "给予圣遗物") baseResults.filter { entry ->
                         (artifactPartQuery.isBlank() || entry.id.takeLast(1) == artifactPartQuery.trim()) &&
-                            (artifactStarQuery.isBlank() || entry.id.dropLast(1).takeLast(1) == artifactStarQuery.trim())
+                            (artifactStarQuery.isBlank() || entry.id.dropLast(2).takeLast(1) == artifactStarQuery.trim())
                     } else baseResults
                     if (template.title == "给予圣遗物") {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1667,14 +1668,17 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
             }
         }
     }
-    if (template.title == "给予圣遗物" && artifactPickerIndex >= 0) {
+    if (artifactPickerIndex >= 0 && template.title in setOf("给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成物品", "生成怪物")) {
         ArtifactPickerDialog(
+            templateTitle = template.title,
             index = artifactPickerIndex,
             query = artifactPickerQuery,
+            starQuery = artifactStarQuery,
             pendingSubstatId = pendingSubstatId,
             enhancementCount = enhancementCount,
             catalog = catalog,
             onQueryChange = { artifactPickerQuery = it },
+            onStarQueryChange = { artifactStarQuery = it },
             onPendingSubstat = { pendingSubstatId = it; enhancementCount = "" },
             onEnhancementChange = { enhancementCount = it },
             onValue = { value ->
@@ -1689,34 +1693,44 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
 
 @Composable
 private fun ArtifactPickerDialog(
+    templateTitle: String,
     index: Int,
     query: String,
+    starQuery: String,
     pendingSubstatId: String,
     enhancementCount: String,
     catalog: ResourceCatalog,
     onQueryChange: (String) -> Unit,
+    onStarQueryChange: (String) -> Unit,
     onPendingSubstat: (String) -> Unit,
     onEnhancementChange: (String) -> Unit,
     onValue: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val title = when (index) {
-        0 -> "选择圣遗物"
-        2 -> "选择主属性"
-        else -> "选择副属性${index - 2}"
+    val title = when {
+        templateTitle == "给予圣遗物" && index == 0 -> "选择圣遗物"
+        templateTitle == "给予圣遗物" && index == 2 -> "选择主属性"
+        templateTitle == "给予圣遗物" -> "选择副属性${index - 2}"
+        else -> "选择$templateTitle"
     }
-    val catalogType = when (index) {
-        0 -> "给予圣遗物"
-        2 -> "给予圣遗物主属性"
-        else -> "给予圣遗物副属性"
+    val catalogType = when {
+        templateTitle == "给予圣遗物" && index == 0 -> "给予圣遗物"
+        templateTitle == "给予圣遗物" && index == 2 -> "给予圣遗物主属性"
+        templateTitle == "给予圣遗物" -> "给予圣遗物副属性"
+        else -> templateTitle
     }
-    val results = catalog.search(catalogType, query, limit = 100)
+    val results = catalog.search(catalogType, query, limit = 100).filter { entry ->
+        templateTitle != "给予圣遗物" || index != 0 || starQuery.isBlank() || entry.id.dropLast(2).takeLast(1) == starQuery.trim()
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(query, onQueryChange, label = { Text("搜索名称或 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (templateTitle == "给予圣遗物" && index == 0) {
+                    OutlinedTextField(starQuery, onStarQueryChange, label = { Text("星级（4 或 5）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
                 if (index in 3..6 && pendingSubstatId.isNotBlank()) {
                     Text("已选副属性 ID：$pendingSubstatId")
                     OutlinedTextField(enhancementCount, onEnhancementChange, label = { Text("强化次数（正整数，不限上限）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
