@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -102,7 +103,7 @@ private val templates = listOf(
     CommandTemplate("给予武器", listOf("武器 ID", "数量", "等级 (1-90)", "精炼 (1-5)", "玩家 UID"), listOf("11501", "1", "90", "1", "")) { v ->
         "/give ${v[0]} x${v[1]} lv${v[2]} r${v[3]}" + v[4].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
-    CommandTemplate("给予圣遗物", listOf("圣遗物 ID", "等级 (0-20)", "主属性（可选）", "副属性1（可选）强化次数1-5", "副属性2（可选）强化次数1-5", "副属性3（可选）强化次数1-5", "副属性4（可选）强化次数1-5", "玩家 UID"), listOf("15001", "20", "", "", "", "", "", "")) { v ->
+    CommandTemplate("给予圣遗物", listOf("圣遗物 ID", "等级 (0-20)", "主属性（可选）", "副属性1（可选）强化次数", "副属性2（可选）强化次数", "副属性3（可选）强化次数", "副属性4（可选）强化次数", "玩家 UID"), listOf("15001", "20", "", "", "", "", "", "")) { v ->
         val level = v[1].toIntOrNull()?.coerceIn(0, 20) ?: 0
         val subStats = (3..6).mapNotNull { index -> normalizeArtifactSubStat(v.getOrNull(index).orEmpty()) }.distinct().joinToString(" ")
     /*
@@ -809,7 +810,7 @@ private fun normalizeArtifactSubStat(raw: String): String? {
     val parts = token.split(',').map { it.trim() }
     return when {
         parts.size == 1 && parts[0].toIntOrNull() != null -> parts[0]
-        parts.size == 2 && parts[0].toIntOrNull() != null && parts[1].toIntOrNull()?.let { it in 1..5 } == true -> "${parts[0]},${parts[1]}"
+        parts.size == 2 && parts[0].toIntOrNull() != null && parts[1].toIntOrNull()?.let { it > 0 } == true -> "${parts[0]},${parts[1]}"
         else -> null
     }
 }
@@ -1462,6 +1463,10 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
     var substatQuery by rememberSaveable(template.title + "-substat-search") { mutableStateOf("") }
     var artifactPartQuery by rememberSaveable(template.title + "-artifact-part") { mutableStateOf("") }
     var artifactStarQuery by rememberSaveable(template.title + "-artifact-star") { mutableStateOf("") }
+    var artifactPickerIndex by rememberSaveable(template.title + "-artifact-picker") { mutableStateOf(-1) }
+    var artifactPickerQuery by rememberSaveable(template.title + "-artifact-picker-query") { mutableStateOf("") }
+    var pendingSubstatId by rememberSaveable(template.title + "-artifact-pending-substat") { mutableStateOf("") }
+    var enhancementCount by rememberSaveable(template.title + "-artifact-enhancement") { mutableStateOf("") }
     val catalog = remember(language) { ResourceCatalog(context, language) }
     val mailExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null && template.title == "发送邮件") runCatching {
@@ -1500,13 +1505,20 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(template.title, style = MaterialTheme.typography.titleLarge)
             template.fields.forEachIndexed { index, label ->
+                val pickerField = template.title == "给予圣遗物" && (index == 0 || index == 2 || index in 3..6)
                 OutlinedTextField(
                     value = values[index],
-                    onValueChange = { input -> values = values.toMutableList().also { it[index] = input } },
+                    onValueChange = { input -> if (!pickerField) values = values.toMutableList().also { it[index] = input } },
                     label = { Text(label) },
                     singleLine = template.title != "批量命令" && !(template.title == "发送邮件" && index == 4),
                     minLines = if (template.title == "批量命令" || (template.title == "发送邮件" && index == 4)) 4 else 1,
-                    modifier = Modifier.fillMaxWidth(),
+                    readOnly = pickerField,
+                    modifier = Modifier.fillMaxWidth().then(if (pickerField) Modifier.clickable {
+                        artifactPickerIndex = index
+                        artifactPickerQuery = ""
+                        pendingSubstatId = ""
+                        enhancementCount = values.getOrNull(index)?.substringAfter(',', "").orEmpty()
+                    } else Modifier),
                 )
             }
             if (template.title in setOf("给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成怪物", "生成实体高级", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就", "设置属性")) {
@@ -1645,6 +1657,79 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
             }
         }
     }
+    if (template.title == "给予圣遗物" && artifactPickerIndex >= 0) {
+        ArtifactPickerDialog(
+            index = artifactPickerIndex,
+            query = artifactPickerQuery,
+            pendingSubstatId = pendingSubstatId,
+            enhancementCount = enhancementCount,
+            catalog = catalog,
+            onQueryChange = { artifactPickerQuery = it },
+            onPendingSubstat = { pendingSubstatId = it; enhancementCount = "" },
+            onEnhancementChange = { enhancementCount = it },
+            onValue = { value ->
+                values = values.toMutableList().also { it[artifactPickerIndex] = value }
+                artifactPickerIndex = -1
+                pendingSubstatId = ""
+            },
+            onDismiss = { artifactPickerIndex = -1; pendingSubstatId = "" },
+        )
+    }
+}
+
+@Composable
+private fun ArtifactPickerDialog(
+    index: Int,
+    query: String,
+    pendingSubstatId: String,
+    enhancementCount: String,
+    catalog: ResourceCatalog,
+    onQueryChange: (String) -> Unit,
+    onPendingSubstat: (String) -> Unit,
+    onEnhancementChange: (String) -> Unit,
+    onValue: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val title = when (index) {
+        0 -> "选择圣遗物"
+        2 -> "选择主属性"
+        else -> "选择副属性${index - 2}"
+    }
+    val catalogType = when (index) {
+        0 -> "给予圣遗物"
+        2 -> "给予圣遗物主属性"
+        else -> "给予圣遗物副属性"
+    }
+    val results = catalog.search(catalogType, query).take(30)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(query, onQueryChange, label = { Text("搜索名称或 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (index in 3..6 && pendingSubstatId.isNotBlank()) {
+                    Text("已选副属性 ID：$pendingSubstatId")
+                    OutlinedTextField(enhancementCount, onEnhancementChange, label = { Text("强化次数（正整数，不限上限）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+                results.forEach { entry ->
+                    TextButton(onClick = {
+                        if (index in 3..6) onPendingSubstat(entry.id) else onValue(entry.id)
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("${entry.id}  ${entry.name}", modifier = Modifier.fillMaxWidth())
+                    }
+                }
+                if (results.isEmpty()) Text("没有找到匹配项", style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {
+            if (index in 3..6 && pendingSubstatId.isNotBlank()) {
+                TextButton(enabled = enhancementCount.toIntOrNull()?.let { it > 0 } == true, onClick = {
+                    onValue("$pendingSubstatId,${enhancementCount.toInt()}")
+                }) { Text("确定") }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }
 
 @Composable
