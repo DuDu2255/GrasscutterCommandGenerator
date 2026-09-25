@@ -36,9 +36,17 @@ internal class OpenCommandClient(host: String) {
             if (responseCode !in 200..299) {
                 error(json.optString("message", "服务器状态请求失败（HTTP $responseCode）"))
             }
-            val version = json.optString("version", "unknown")
-            val players = json.optInt("playerCount", json.optInt("player_count", -1))
-            val maxPlayers = json.optInt("maxPlayer", json.optInt("max_player", -1))
+            // gc-opencommand-plugin returns { retcode, status: { version, playerCount, MaxPlayer } }.
+            // Keep the top-level fallback for older/custom dispatch implementations.
+            val status = json.optJSONObject("status") ?: json
+            val version = status.optString("version", json.optString("version", "unknown"))
+            val players = status.optInt("playerCount", status.optInt("player_count", json.optInt("playerCount", -1)))
+            val maxPlayers = when {
+                status.has("MaxPlayer") -> status.optInt("MaxPlayer", -1)
+                status.has("maxPlayer") -> status.optInt("maxPlayer", -1)
+                status.has("max_player") -> status.optInt("max_player", -1)
+                else -> json.optInt("MaxPlayer", -1)
+            }
             if (players >= 0 && maxPlayers > 0) "$version ($players/$maxPlayers)" else version
         } finally {
             connection.disconnect()

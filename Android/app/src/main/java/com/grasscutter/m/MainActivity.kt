@@ -1423,14 +1423,17 @@ private fun RemoteConnectionPanel(
                                 val activeToken = returnedToken.ifBlank { token }
                                 onToken(activeToken)
                                 onConnected(activeToken)
-                                onStatus("OpenCommand 已连接")
+                                // Also query dispatch status so the game version is visible after connecting.
+                                runCatching { OpenCommandClient(host).serverStatus() }
+                                    .onSuccess { server -> onStatus("OpenCommand 已连接，服务器版本 $server") }
+                                    .onFailure { onStatus("OpenCommand 已连接") }
                             }
                             .onFailure { onStatus("验证失败：${it.message ?: "未知错误"}") }
                     }
                 }) { Text("验证并连接") }
                 TextButton(enabled = connected, onClick = onDisconnected) { Text("断开连接") }
                 TextButton(onClick = onSave) { Text("保存配置") }
-                Text(if (connected) "已连接" else status, color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
+                Text(if (connected && status.isBlank()) "已连接" else status, color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
             }
             if (status.isNotBlank() && !connected) Text(status, style = MaterialTheme.typography.bodySmall)
         }
