@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -1506,20 +1507,24 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
             Text(template.title, style = MaterialTheme.typography.titleLarge)
             template.fields.forEachIndexed { index, label ->
                 val pickerField = template.title == "给予圣遗物" && (index == 0 || index == 2 || index in 3..6)
-                OutlinedTextField(
-                    value = values[index],
-                    onValueChange = { input -> if (!pickerField) values = values.toMutableList().also { it[index] = input } },
-                    label = { Text(label) },
-                    singleLine = template.title != "批量命令" && !(template.title == "发送邮件" && index == 4),
-                    minLines = if (template.title == "批量命令" || (template.title == "发送邮件" && index == 4)) 4 else 1,
-                    readOnly = pickerField,
-                    modifier = Modifier.fillMaxWidth().then(if (pickerField) Modifier.clickable {
+                val openPicker = {
                         artifactPickerIndex = index
                         artifactPickerQuery = ""
                         pendingSubstatId = ""
                         enhancementCount = values.getOrNull(index)?.substringAfter(',', "").orEmpty()
-                    } else Modifier),
-                )
+                    }
+                val field: @Composable () -> Unit = {
+                    OutlinedTextField(
+                        value = values[index],
+                        onValueChange = { input -> if (!pickerField) values = values.toMutableList().also { it[index] = input } },
+                        label = { Text(label) },
+                        singleLine = template.title != "批量命令" && !(template.title == "发送邮件" && index == 4),
+                        minLines = if (template.title == "批量命令" || (template.title == "发送邮件" && index == 4)) 4 else 1,
+                        readOnly = pickerField,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (pickerField) Box(modifier = Modifier.fillMaxWidth().clickable { openPicker() }) { field() } else field()
             }
             if (template.title in setOf("给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成怪物", "生成实体高级", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就", "设置属性")) {
                 OutlinedTextField(
