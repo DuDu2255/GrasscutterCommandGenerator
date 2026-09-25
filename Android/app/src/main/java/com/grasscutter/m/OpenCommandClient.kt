@@ -47,7 +47,11 @@ internal class OpenCommandClient(host: String) {
                 status.has("max_player") -> status.optInt("max_player", -1)
                 else -> json.optInt("MaxPlayer", -1)
             }
-            if (players >= 0 && maxPlayers > 0) "$version ($players/$maxPlayers)" else version
+            if (players >= 0 && maxPlayers > 0) {
+                "服务器游戏版本：$version\n当前在线人数：$players\n服务器最大人数：$maxPlayers"
+            } else {
+                "服务器游戏版本：$version"
+            }
         } finally {
             connection.disconnect()
         }

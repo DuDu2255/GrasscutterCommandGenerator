@@ -1425,7 +1425,7 @@ private fun RemoteConnectionPanel(
                                 onConnected(activeToken)
                                 // Also query dispatch status so the game version is visible after connecting.
                                 runCatching { OpenCommandClient(host).serverStatus() }
-                                    .onSuccess { server -> onStatus("OpenCommand 已连接，服务器版本 $server") }
+                                    .onSuccess { server -> onStatus("OpenCommand 已连接\n$server") }
                                     .onFailure { onStatus("OpenCommand 已连接") }
                             }
                             .onFailure { onStatus("验证失败：${it.message ?: "未知错误"}") }
