@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.provider.Settings
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
@@ -79,14 +81,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class CommandTemplate(
+internal data class CommandTemplate(
     val title: String,
     val fields: List<String>,
     val example: List<String>,
     val render: (List<String>) -> String,
 )
 
-private val templates = listOf(
+internal val templates = listOf(
     CommandTemplate("给予物品", listOf("物品 ID", "数量", "等级", "玩家 UID"), listOf("223", "1", "", "")) { v ->
         "/give ${v[0]} x${v[1]}" + v[2].takeIf { it.isNotBlank() }?.let { " lv$it" }.orEmpty() + v[3].takeIf { it.isNotBlank() }?.let { " @$it" }.orEmpty()
     },
@@ -321,6 +323,7 @@ private fun CommandGeneratorApp() {
                         TextButton(onClick = { settingsImportLauncher.launch(arrayOf("application/json", "text/plain")) }) { Text("导入设置") }
                         TextButton(onClick = { settingsExportLauncher.launch("grasscutter-settings.json") }) { Text("导出设置") }
                     }
+                    FloatingWindowPanel(context)
                     AboutPanel(context)
                 }
             }
@@ -460,6 +463,35 @@ private fun CommandGeneratorApp() {
             }
         }
     }
+    }
+}
+
+@Composable
+private fun FloatingWindowPanel(context: Context) {
+    val canDraw = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
+    var running by remember { mutableStateOf(false) }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("悬浮指令窗", style = MaterialTheme.typography.titleMedium)
+            Text(
+                if (canDraw) "可在其他应用上方搜索、生成并发送 Grasscutter 指令。" else "需要允许“显示在其他应用上层”权限才能启用。",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    if (!canDraw && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        context.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")))
+                    } else {
+                        context.startService(Intent(context, FloatingWindowService::class.java))
+                        running = true
+                    }
+                }) { Text(if (running) "悬浮窗已运行" else "打开悬浮窗") }
+                TextButton(onClick = {
+                    context.stopService(Intent(context, FloatingWindowService::class.java))
+                    running = false
+                }) { Text("关闭") }
+            }
+        }
     }
 }
 
