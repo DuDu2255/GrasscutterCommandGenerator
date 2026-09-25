@@ -1700,7 +1700,7 @@ private fun ArtifactPickerDialog(
         2 -> "给予圣遗物主属性"
         else -> "给予圣遗物副属性"
     }
-    val results = catalog.search(catalogType, query).take(30)
+    val results = catalog.search(catalogType, query, limit = 100)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },

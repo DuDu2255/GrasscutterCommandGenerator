@@ -7,10 +7,10 @@ internal data class CatalogEntry(val id: String, val name: String)
 internal class ResourceCatalog(private val context: Context, private val language: String = "zh-cn") {
     private val cache = mutableMapOf<String, List<CatalogEntry>>()
 
-    fun search(kind: String, query: String): List<CatalogEntry> {
+    fun search(kind: String, query: String, limit: Int = 8): List<CatalogEntry> {
         val entries = cache.getOrPut(kind) { load(kind) }
-        if (query.isBlank()) return entries.take(8)
-        return entries.filter { it.id.contains(query, true) || it.name.contains(query, true) }.take(8)
+        if (query.isBlank()) return entries.take(limit)
+        return entries.filter { it.id.contains(query, true) || it.name.contains(query, true) }.take(limit)
     }
 
     fun idForGood(kind: String, key: String): String? {
