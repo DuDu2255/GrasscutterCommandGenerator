@@ -9,8 +9,11 @@ internal class ResourceCatalog(private val context: Context, private val languag
 
     fun search(kind: String, query: String, limit: Int = 8): List<CatalogEntry> {
         val entries = cache.getOrPut(kind) { load(kind) }
-        if (query.isBlank()) return entries.take(limit)
-        return entries.filter { it.id.contains(query, true) || it.name.contains(query, true) }.take(limit)
+        val terms = query.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (terms.isEmpty()) return entries.take(limit)
+        return entries.filter { entry ->
+            terms.all { term -> entry.id.contains(term, true) || entry.name.contains(term, true) }
+        }.take(limit)
     }
 
     fun idForGood(kind: String, key: String): String? {

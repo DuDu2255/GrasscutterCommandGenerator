@@ -244,6 +244,9 @@ private fun CommandGeneratorApp() {
             language = settings.optString("language", language)
             darkTheme = settings.optBoolean("darkTheme", darkTheme)
             appPreferences.edit().putString("language", language).putBoolean("dark_theme", darkTheme).apply()
+            connection.save(host.trim(), token.trim(), playerId.trim())
+            connected = false
+            connectionStatus = "配置已导入，请重新验证连接"
         }
     }
     var jsonName by remember { mutableStateOf("config.json") }
@@ -415,6 +418,7 @@ private fun CommandGeneratorApp() {
                     connected = connected,
                     scope = scope,
                     onStatus = { connectionStatus = it },
+                    onConnectionLost = { connected = false },
                     onConnected = { newToken ->
                         connected = true
                         connection.save(host.trim(), newToken.trim(), playerId)
@@ -656,7 +660,7 @@ private fun GachaBannerEditor(context: Context, language: String) {
                 OutlinedTextField(query, { query = it }, label = { Text("搜索备注、卡池类型或计划 ID") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
-                        val next = JSONObject().put("comment", "新卡池").put("gachaType", 301).put("scheduleId", 1)
+                        val next = JSONObject().put("comment", "新卡池").put("gachaType", 301).put("scheduleId", nextJsonInt(array, "scheduleId", 1))
                             .put("prefabPath", "GachaShowPanel_A007").put("titlePath", "UI_GACHA_SHOW_PANEL_A007_TITLE")
                             .put("costItemId", 223).put("endTime", 1924992000).put("sortId", 1)
                             .put("rateUpItems4", JSONArray()).put("rateUpItems5", JSONArray()).put("bannerType", "EVENT")
@@ -674,7 +678,7 @@ private fun GachaBannerEditor(context: Context, language: String) {
                     Button(enabled = selected != null, onClick = {
                         selected?.let { source ->
                             val copy = JSONObject(source.toString())
-                            copy.put("scheduleId", (array.length() + 1) * 100)
+                            copy.put("scheduleId", nextJsonInt(array, "scheduleId", 1))
                             copy.put("comment", copy.optString("comment", "卡池") + " 副本")
                             array.put(copy)
                             bannersText = array.toString(2)
@@ -816,6 +820,10 @@ private fun normalizeArtifactSubStat(raw: String): String? {
     }
 }
 
+private fun artifactStar(id: String): String = id.dropLast(2).takeLast(1)
+
+private fun artifactPart(id: String): String = id.dropLast(1).takeLast(1)
+
 private fun validateArtifactValues(values: List<String>): String {
     if (values.size < 8) return "圣遗物参数不完整"
     val level = values[1].trim().toIntOrNull() ?: return "圣遗物等级必须是数字"
@@ -890,7 +898,7 @@ private fun ShopEditor(context: Context, language: String) {
                 Button(enabled = shops != null, onClick = { status = validateShops(shops!!) }) { Text("校验") }
                 Button(onClick = {
                     val root = shops ?: JSONArray()
-                    root.put(JSONObject().put("shopId", root.length() + 1).put("items", JSONArray()))
+                    root.put(JSONObject().put("shopId", nextJsonInt(root, "shopId", 1)).put("items", JSONArray()))
                     shopText = root.toString(2); shopIndex = root.length() - 1; goodsIndex = 0; status = "已添加商店"
                 }) { Text("新增商店") }
                 Button(enabled = shop != null, onClick = {
@@ -996,7 +1004,7 @@ private fun ActivityEditor(context: Context, language: String) {
                 Button(enabled = activities != null, onClick = { status = validateActivities(activities!!) }) { Text("校验") }
                 Button(onClick = {
                     val root = activities ?: JSONArray()
-                    root.put(JSONObject().put("activityId", 1).put("activityType", 1).put("scheduleId", 1).put("meetCondList", JSONArray()).put("beginTime", "2020-01-01T00:00:00").put("endTime", "2099-12-31T23:59:59"))
+                    root.put(JSONObject().put("activityId", nextJsonInt(root, "activityId", 1)).put("activityType", 1).put("scheduleId", 1).put("meetCondList", JSONArray()).put("beginTime", "2020-01-01T00:00:00").put("endTime", "2099-12-31T23:59:59"))
                     activityText = root.toString(2); activityIndex = root.length() - 1; status = "已添加活动"
                 }) { Text("新增活动") }
             }
@@ -1071,7 +1079,7 @@ private fun DropEditor(context: Context, language: String) {
                 Button(enabled = monsters != null, onClick = { status = validateDropTables(monsters!!) }) { Text("校验") }
                 Button(onClick = {
                     val root = monsters ?: JSONArray()
-                    root.put(JSONObject().put("monsterId", 20010101).put("dropDataList", JSONArray()))
+                    root.put(JSONObject().put("monsterId", nextJsonInt(root, "monsterId", 20010101)).put("dropDataList", JSONArray()))
                     dropText = root.toString(2); monsterIndex = root.length() - 1; dropIndex = 0; status = "已添加怪物掉落表"
                 }) { Text("新增怪物") }
                 Button(enabled = monster != null, onClick = {
@@ -1256,6 +1264,14 @@ private fun appendUniqueInt(objectValue: JSONObject, key: String, rawId: String)
     objectValue.put(key, current)
 }
 
+private fun nextJsonInt(array: JSONArray, key: String, fallback: Int): Int {
+    var maximum = fallback - 1
+    for (index in 0 until array.length()) {
+        maximum = maxOf(maximum, array.optJSONObject(index)?.optInt(key, fallback - 1) ?: (fallback - 1))
+    }
+    return maximum + 1
+}
+
 private fun validateShops(shops: JSONArray): String {
     val errors = mutableListOf<String>()
     for (index in 0 until shops.length()) {
@@ -1372,6 +1388,7 @@ private fun RemoteConnectionPanel(
     connected: Boolean,
     scope: kotlinx.coroutines.CoroutineScope,
     onStatus: (String) -> Unit,
+    onConnectionLost: () -> Unit,
     onConnected: (String) -> Unit,
     onToken: (String) -> Unit,
     onDisconnected: () -> Unit,
@@ -1389,7 +1406,7 @@ private fun RemoteConnectionPanel(
                         onStatus("检测中...")
                         runCatching { OpenCommandClient(host).ping() }
                             .onSuccess { version -> onStatus("已连接，插件版本 $version") }
-                            .onFailure { onStatus("连接失败：${it.message ?: "未知错误"}") }
+                            .onFailure { onConnectionLost(); onStatus("连接失败：${it.message ?: "未知错误"}") }
                     }
                 }) { Text("检测服务器") }
                 Button(enabled = host.isNotBlank(), onClick = {
@@ -1397,7 +1414,7 @@ private fun RemoteConnectionPanel(
                         onStatus("查询状态中...")
                         runCatching { OpenCommandClient(host).serverStatus() }
                             .onSuccess { onStatus("服务器：$it") }
-                            .onFailure { onStatus("状态查询失败：${it.message ?: "未知错误"}") }
+                            .onFailure { onConnectionLost(); onStatus("状态查询失败：${it.message ?: "未知错误"}") }
                     }
                 }) { Text("服务器状态") }
                 Button(enabled = host.isNotBlank() && playerId.isNotBlank(), onClick = {
@@ -1447,7 +1464,7 @@ private fun RemoteConnectionPanel(
                                     .onSuccess { server -> onStatus("OpenCommand 已连接\n$server") }
                                     .onFailure { onStatus("OpenCommand 已连接") }
                             }
-                            .onFailure { onStatus("验证失败：${it.message ?: "未知错误"}") }
+                            .onFailure { onConnectionLost(); onStatus("验证失败：${it.message ?: "未知错误"}") }
                     }
                 }) { Text("验证并连接") }
                 TextButton(enabled = connected, onClick = onDisconnected) { Text("断开连接") }
@@ -1541,11 +1558,15 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    val baseResults = catalog.search(template.title, searchQuery)
+                    val baseResults = catalog.search(
+                        template.title,
+                        searchQuery,
+                        limit = if (template.title == "给予圣遗物") Int.MAX_VALUE else 8,
+                    )
                     val results = if (template.title == "给予圣遗物") baseResults.filter { entry ->
-                        (artifactPartQuery.isBlank() || entry.id.takeLast(1) == artifactPartQuery.trim()) &&
-                            (artifactStarQuery.isBlank() || entry.id.dropLast(2).takeLast(1) == artifactStarQuery.trim())
-                    } else baseResults
+                        (artifactPartQuery.isBlank() || artifactPart(entry.id) == artifactPartQuery.trim()) &&
+                            (artifactStarQuery.isBlank() || artifactStar(entry.id) == artifactStarQuery.trim())
+                    }.take(8) else baseResults
                     if (template.title == "给予圣遗物") {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(artifactPartQuery, { artifactPartQuery = it }, label = { Text("部位尾号") }, singleLine = true, modifier = Modifier.weight(1f))
@@ -1719,8 +1740,8 @@ private fun ArtifactPickerDialog(
         templateTitle == "给予圣遗物" -> "给予圣遗物副属性"
         else -> templateTitle
     }
-    val results = catalog.search(catalogType, query, limit = 100).filter { entry ->
-        templateTitle != "给予圣遗物" || index != 0 || starQuery.isBlank() || entry.id.dropLast(2).takeLast(1) == starQuery.trim()
+    val results = catalog.search(catalogType, query, limit = if (templateTitle == "给予圣遗物" && index == 0) Int.MAX_VALUE else 100).filter { entry ->
+        templateTitle != "给予圣遗物" || index != 0 || starQuery.isBlank() || artifactStar(entry.id) == starQuery.trim()
     }
     AlertDialog(
         onDismissRequest = onDismiss,

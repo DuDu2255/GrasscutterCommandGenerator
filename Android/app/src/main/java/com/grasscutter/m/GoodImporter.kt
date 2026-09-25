@@ -31,11 +31,11 @@ internal object GoodImporter {
                 val item = artifacts.getJSONObject(i)
                 val setId = catalog.idForGood("给予圣遗物套装", item.optString("setKey")) ?: continue
                 val slot = when (item.optString("slotKey")) {
-                    "flower" -> 10
+                    "goblet" -> 10
                     "plume" -> 20
-                    "sands" -> 30
-                    "goblet" -> 40
-                    "circlet" -> 50
+                    "circlet" -> 30
+                    "flower" -> 40
+                    "sands" -> 50
                     else -> continue
                 }
                 val artifactId = setId.toInt() * 1000 + item.optInt("rarity", 5) * 100 + slot
@@ -53,7 +53,7 @@ internal object GoodImporter {
         }
         json.optJSONObject("materials")?.keys()?.forEach { key ->
             val id = catalog.idForGood("给予物品", key) ?: return@forEach
-            commands += "/give $id ${json.getJSONObject("materials").optInt(key)}"
+            commands += "/give $id x${json.getJSONObject("materials").optInt(key)}"
         }
         return commands
     }
