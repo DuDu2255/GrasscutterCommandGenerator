@@ -36,7 +36,8 @@ class FloatingWindowService : Service() {
     private var overlay: View? = null
     private var expandedView: View? = null
     private var iconView: View? = null
-    private var compact = true
+    // The first launch must show the complete command window; compact mode is opt-in.
+    private var compact = false
     private var minimized = false
     private var selected: CommandTemplate? = null
     private val fieldValues = mutableMapOf<String, MutableList<String>>()
