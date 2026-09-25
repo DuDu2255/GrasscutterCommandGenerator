@@ -1524,7 +1524,12 @@ private fun CommandForm(template: CommandTemplate, context: Context, snackbar: S
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                if (pickerField) Box(modifier = Modifier.fillMaxWidth().clickable { openPicker() }) { field() } else field()
+                if (pickerField) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        field()
+                        Box(modifier = Modifier.matchParentSize().clickable { openPicker() })
+                    }
+                } else field()
             }
             if (template.title in setOf("给予物品", "掉落物品", "给予角色", "给予角色（兼容）", "给予武器", "给予圣遗物", "生成怪物", "生成实体高级", "生成物品", "场景", "地城", "过场动画", "天气", "任务", "成就", "设置属性")) {
                 OutlinedTextField(
