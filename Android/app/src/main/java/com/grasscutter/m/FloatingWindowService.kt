@@ -8,6 +8,7 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
+import android.text.InputType
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -38,6 +39,7 @@ class FloatingWindowService : Service() {
     private var compact = true
     private var minimized = false
     private var selected: CommandTemplate? = null
+    private val fieldValues = mutableMapOf<String, MutableList<String>>()
     private val fields = mutableListOf<EditText>()
     private lateinit var commandInput: EditText
     private lateinit var searchInput: EditText
@@ -126,8 +128,19 @@ class FloatingWindowService : Service() {
             content.addView(button, LinearLayout.LayoutParams(-1, dp(42)))
         }
         if (!compact && selected != null) {
+            val savedValues = fieldValues.getOrPut(selected!!.title) { selected!!.example.toMutableList() }
             selected!!.fields.forEachIndexed { index, label ->
-                val field = EditText(this).apply { hint = label; setText(selected!!.example.getOrNull(index).orEmpty()); setSingleLine(true); configureInput(this) }
+                val field = EditText(this).apply {
+                    hint = label
+                    setText(savedValues.getOrNull(index).orEmpty())
+                    setSingleLine(true)
+                    if (label.contains("数量")) inputType = InputType.TYPE_CLASS_NUMBER
+                    configureInput(this)
+                }
+                field.addTextChangedListener(SimpleTextWatcher {
+                    while (savedValues.size <= index) savedValues.add("")
+                    savedValues[index] = field.text.toString()
+                })
                 fields += field; content.addView(field, LinearLayout.LayoutParams(-1, dp(44)))
             }
             val render = Button(this).apply { text = "生成 ${selected!!.title}"; setOnClickListener { commandInput.setText(selected!!.render(fields.map { it.text.toString() })) } }
