@@ -1407,6 +1407,11 @@ private fun RemoteConnectionPanel(
                     }
                 }) { Text("发送验证码") }
             }
+            Text(
+                text = if (connected && status.isBlank()) "已连接" else status,
+                color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            )
             OutlinedTextField(verificationCode, onVerificationCodeChange, label = { Text("验证码") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(token, onTokenChange, label = { Text("Token（可直接填写已保存 Token）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1433,9 +1438,7 @@ private fun RemoteConnectionPanel(
                 }) { Text("验证并连接") }
                 TextButton(enabled = connected, onClick = onDisconnected) { Text("断开连接") }
                 TextButton(onClick = onSave) { Text("保存配置") }
-                Text(if (connected && status.isBlank()) "已连接" else status, color = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
             }
-            if (status.isNotBlank() && !connected) Text(status, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
