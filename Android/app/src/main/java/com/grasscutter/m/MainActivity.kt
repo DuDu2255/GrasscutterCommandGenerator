@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -84,6 +85,28 @@ private data class CommandTemplate(
     val fields: List<String>,
     val example: List<String>,
     val render: (List<String>) -> String,
+)
+
+/**
+ * Edit this single block for the next release announcement. Keep download URLs blank
+ * until the release files are actually uploaded.
+ */
+private data class UpdateAnnouncement(
+    val id: String,
+    val version: String,
+    val title: String,
+    val body: String,
+    val explanation: String,
+    val quarkUrl: String = "",
+    val pan123Url: String = "",
+)
+
+private val currentAnnouncement = UpdateAnnouncement(
+    id = "7.0.0-floating-window",
+    version = "7.0.0 测试更新",
+    title = "更新公告",
+    body = "新增悬浮指令窗，支持完整窗口、最小化悬浮图标、命令搜索和快速发送。",
+    explanation = "下载链接暂未发布。后续发布新版本时，只需修改本文件中的公告编号、版本、说明和网盘链接；链接留空时不会显示下载按钮。",
 )
 
 private val templates = listOf(
@@ -201,6 +224,9 @@ private fun CommandGeneratorApp() {
     val context = LocalContext.current
     val store = remember { HistoryStore(context) }
     val appPreferences = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
+    var announcementVisible by rememberSaveable {
+        mutableStateOf(appPreferences.getString("dismissed_announcement_id", "") != currentAnnouncement.id)
+    }
     var language by remember { mutableStateOf(appPreferences.getString("language", "zh-cn") ?: "zh-cn") }
     var darkTheme by remember { mutableStateOf(appPreferences.getBoolean("dark_theme", false)) }
     val connection = remember { OpenCommandSettings(context) }
@@ -291,6 +317,16 @@ private fun CommandGeneratorApp() {
     }
 
     MaterialTheme(colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()) {
+    if (announcementVisible) {
+        UpdateAnnouncementDialog(
+            announcement = currentAnnouncement,
+            onClose = { announcementVisible = false },
+            onNeverShow = {
+                appPreferences.edit().putString("dismissed_announcement_id", currentAnnouncement.id).apply()
+                announcementVisible = false
+            },
+        )
+    }
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -461,6 +497,44 @@ private fun CommandGeneratorApp() {
         }
     }
     }
+}
+
+@Composable
+private fun UpdateAnnouncementDialog(
+    announcement: UpdateAnnouncement,
+    onClose: () -> Unit,
+    onNeverShow: () -> Unit,
+) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(announcement.title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(announcement.version, style = MaterialTheme.typography.titleMedium)
+                Text(announcement.body)
+                Text(announcement.explanation, style = MaterialTheme.typography.bodySmall)
+                HorizontalDivider()
+                Text("下载更新", style = MaterialTheme.typography.labelLarge)
+                if (announcement.quarkUrl.isBlank()) {
+                    Text("夸克网盘：链接待填写", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(announcement.quarkUrl))) }) {
+                        Text("打开夸克网盘")
+                    }
+                }
+                if (announcement.pan123Url.isBlank()) {
+                    Text("123网盘：链接待填写", style = MaterialTheme.typography.bodySmall)
+                } else {
+                    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(announcement.pan123Url))) }) {
+                        Text("打开123网盘")
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("关闭本次公告") } },
+        dismissButton = { TextButton(onClick = onNeverShow) { Text("本次不再显示") } },
+    )
 }
 
 @Composable
