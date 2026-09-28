@@ -302,7 +302,7 @@ private fun CommandGeneratorApp() {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("7.0指令生成器") },
+                title = { Text("7.1指令生成器") },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             )
         },
@@ -479,7 +479,7 @@ private fun AboutPanel(context: Context) {
     if (expanded) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("7.0 指令生成器", style = MaterialTheme.typography.titleMedium)
+                Text("7.1 指令生成器", style = MaterialTheme.typography.titleMedium)
                 Text("版本 ${BuildConfig.VERSION_NAME} · 包名 com.grasscutter.m", style = MaterialTheme.typography.bodySmall)
                 Text("基于 GrasscutterTools 的 Android 适配，遵循 AGPL-3.0-or-later。", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = {
