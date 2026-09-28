@@ -105,10 +105,10 @@ private data class UpdateAnnouncement(
 
 private val currentAnnouncement = UpdateAnnouncement(
     id = "7.1.0",
-    version = "7.1.0 正式更新",
+    version = "更新为 7.1 版本",
     title = "更新公告",
-    body = "更新了 7.1.0 游戏资源和 Android 指令生成器。",
-    explanation = "发布新版本时，请同时更新公告编号、版本号和夸克网盘链接。夸克链接填写后将启用强制更新，应用启动时会自动提示。",
+    body = "本次更新为 7.1 版本，更新了角色、圣遗物、武器等游戏资源，并改进了 Android 指令生成器。",
+    explanation = "本次资源更新包含 7.1 版本的角色、圣遗物、武器、物品、怪物、场景和活动数据。发布新版本时，请同时更新公告编号、版本号和夸克网盘链接；夸克链接填写后将启用强制更新，应用启动时会自动提示。",
     quarkUrl = "",
     forceUpdate = false,
 )
