@@ -100,14 +100,17 @@ private data class UpdateAnnouncement(
     val explanation: String,
     val quarkUrl: String = "",
     val pan123Url: String = "",
+    val forceUpdate: Boolean = false,
 )
 
 private val currentAnnouncement = UpdateAnnouncement(
-    id = "7.0.0-floating-window",
-    version = "7.0.0 测试更新",
+    id = "7.1.0",
+    version = "7.1.0 正式更新",
     title = "更新公告",
-    body = "新增悬浮指令窗，支持完整窗口、最小化悬浮图标、命令搜索和快速发送。",
-    explanation = "下载链接暂未发布。后续发布新版本时，只需修改本文件中的公告编号、版本、说明和网盘链接；链接留空时不会显示下载按钮。",
+    body = "更新了 7.1.0 游戏资源和 Android 指令生成器。",
+    explanation = "发布新版本时，请同时更新公告编号、版本号和夸克网盘链接。夸克链接填写后将启用强制更新，应用启动时会自动提示。",
+    quarkUrl = "",
+    forceUpdate = false,
 )
 
 private val templates = listOf(
@@ -229,7 +232,7 @@ private fun CommandGeneratorApp() {
     val store = remember { HistoryStore(context) }
     val appPreferences = remember { context.getSharedPreferences("app_settings", Context.MODE_PRIVATE) }
     var announcementVisible by rememberSaveable {
-        mutableStateOf(appPreferences.getString("dismissed_announcement_id", "") != currentAnnouncement.id)
+        mutableStateOf(currentAnnouncement.forceUpdate || appPreferences.getString("dismissed_announcement_id", "") != currentAnnouncement.id)
     }
     var language by remember { mutableStateOf(appPreferences.getString("language", "zh-cn") ?: "zh-cn") }
     var darkTheme by remember { mutableStateOf(appPreferences.getBoolean("dark_theme", false)) }
@@ -515,7 +518,7 @@ private fun UpdateAnnouncementDialog(
 ) {
     val context = LocalContext.current
     AlertDialog(
-        onDismissRequest = onClose,
+        onDismissRequest = { if (!announcement.forceUpdate) onClose() },
         title = { Text(announcement.title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -540,8 +543,14 @@ private fun UpdateAnnouncementDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onClose) { Text("关闭本次公告") } },
-        dismissButton = { TextButton(onClick = onNeverShow) { Text("本次不再显示") } },
+        confirmButton = {
+            TextButton(onClick = onClose, enabled = !announcement.forceUpdate) {
+                Text(if (announcement.forceUpdate) "请先下载更新" else "关闭本次公告")
+            }
+        },
+        dismissButton = if (announcement.forceUpdate) null else {
+            { TextButton(onClick = onNeverShow) { Text("本次不再显示") } }
+        },
     )
 }
 
