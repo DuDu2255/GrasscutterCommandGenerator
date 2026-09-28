@@ -5,15 +5,31 @@ plugins {
 }
 
 android {
-    namespace = "io.github.jie65535.grasscutter.commandgenerator"
-    compileSdk = 35
+    namespace = "com.grasscutter.m"
+    compileSdk = 36
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
 
     defaultConfig {
-        applicationId = "io.github.jie65535.grasscutter.commandgenerator"
+        applicationId = "com.grasscutter.m"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "7.0.0"
+    }
+
+    val releaseKeystore = System.getenv("ANDROID_KEYSTORE_FILE")
+    if (!releaseKeystore.isNullOrBlank()) {
+        signingConfigs.create("release") {
+            storeFile = file(releaseKeystore)
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+        }
+        buildTypes.getByName("release").signingConfig = signingConfigs.getByName("release")
     }
 
     buildFeatures { compose = true; buildConfig = true }
@@ -24,7 +40,7 @@ val upstreamResources = rootProject.file("../Source/GrasscutterTools/Resources")
 val syncedResources = layout.buildDirectory.dir("generated/upstreamAssets")
 val syncUpstreamResources by tasks.registering(Sync::class) {
     from(upstreamResources) {
-        include("zh-cn/*.txt", "zh-tw/*.txt", "en-us/*.txt", "ru-ru/*.txt")
+        include("zh-cn/*.txt", "zh-tw/*.txt", "en-us/*.txt", "ru-ru/*.txt", "Banners.json")
         into("upstream")
     }
     into(syncedResources)
